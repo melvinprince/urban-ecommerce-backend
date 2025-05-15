@@ -1,4 +1,3 @@
-// models/Category.js
 // Stores product categories (e.g. “Men’s Apparel”, “Women’s Footwear”, “Kids (3+) Apparel”)
 
 const mongoose = require("mongoose");
