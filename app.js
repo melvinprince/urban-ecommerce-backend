@@ -4,7 +4,8 @@ const helmet = require("helmet");
 const morgan = require("morgan");
 const cookieParser = require("cookie-parser");
 require("express-async-errors");
-const authRoutes = require("./routes/auth");
+const authRoutes = require("./routes/authRoute");
+const categoryRoute = require("./routes/categoryRoute");
 
 const app = express();
 
@@ -22,6 +23,7 @@ app.get("/", (req, res) => {
 
 // Routes
 app.use("/api/auth", authRoutes);
+app.use("/api/categories", categoryRoute);
 
 // Error Handler (Basic)
 app.use((err, req, res, next) => {
