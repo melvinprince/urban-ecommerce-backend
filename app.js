@@ -4,9 +4,12 @@ const helmet = require("helmet");
 const morgan = require("morgan");
 const cookieParser = require("cookie-parser");
 require("express-async-errors");
+const auth = require("./middleware/auth");
 const authRoutes = require("./routes/authRoute");
 const categoryRoute = require("./routes/categoryRoute");
 const productRoutes = require("./routes/productRoutes");
+const cartRoutes = require("./routes/cartRoutes");
+const wishlistRoutes = require("./routes/wishlistRoutes");
 
 const app = express();
 
@@ -26,6 +29,10 @@ app.get("/", (req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/categories", categoryRoute);
 app.use("/api/products", productRoutes);
+app.use("/api/wishlist", wishlistRoutes);
+
+//Protected Routes
+app.use("/api/cart", auth, cartRoutes);
 
 // Error Handler (Basic)
 app.use((err, req, res, next) => {

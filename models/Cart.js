@@ -1,5 +1,4 @@
 // models/Cart.js
-// Optional server‐side cart to persist items for logged‐in users
 
 const mongoose = require("mongoose");
 
@@ -13,19 +12,35 @@ const cartItemSchema = new mongoose.Schema(
     quantity: { type: Number, default: 1 },
     size: String,
     color: String,
-  },
-  { _id: false }
+    // _id: true by default → each item gets its own id
+  }
+  // remove the `{ _id: false }` option here
 );
 
-const cartSchema = new mongoose.Schema({
-  user: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User",
-    required: true,
-    unique: true, // one cart per user
+const cartSchema = new mongoose.Schema(
+  {
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      unique: true,
+    },
+    items: [cartItemSchema],
   },
-  items: [cartItemSchema],
-  updatedAt: { type: Date, default: Date.now },
+  {
+    timestamps: true,
+  }
+);
+
+cartSchema.virtual("totalItems").get(function () {
+  return this.items.reduce((sum, i) => sum + i.quantity, 0);
+});
+
+cartSchema.virtual("subtotal").get(function () {
+  return this.items.reduce(
+    (sum, i) => sum + i.quantity * (i.product.price || 0),
+    0
+  );
 });
 
 module.exports = mongoose.model("Cart", cartSchema);
