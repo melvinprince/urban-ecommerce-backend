@@ -1,5 +1,3 @@
-// Stores product categories (e.g. “Men’s Apparel”, “Women’s Footwear”, “Kids (3+) Apparel”)
-
 const mongoose = require("mongoose");
 
 const categorySchema = new mongoose.Schema(
@@ -11,19 +9,16 @@ const categorySchema = new mongoose.Schema(
     slug: {
       type: String,
       required: true,
-      unique: true, // used in URLs, e.g. /category/mens-apparel
+      unique: true,
+      index: true,
     },
     parent: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Category",
-      default: null, // for top‐level categories
+      default: null,
     },
-    image: {
-      type: String, // optional banner or icon URL
-    },
-    description: {
-      type: String, // optional long description
-    },
+    image: { type: String },
+    description: { type: String },
   },
   { timestamps: true }
 );

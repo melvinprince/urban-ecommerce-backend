@@ -1,21 +1,15 @@
-// models/Cart.js
-
 const mongoose = require("mongoose");
 
-const cartItemSchema = new mongoose.Schema(
-  {
-    product: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Product",
-      required: true,
-    },
-    quantity: { type: Number, default: 1 },
-    size: String,
-    color: String,
-    // _id: true by default → each item gets its own id
-  }
-  // remove the `{ _id: false }` option here
-);
+const cartItemSchema = new mongoose.Schema({
+  product: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Product",
+    required: true,
+  },
+  quantity: { type: Number, default: 1 },
+  size: String,
+  color: String,
+});
 
 const cartSchema = new mongoose.Schema(
   {
@@ -27,11 +21,10 @@ const cartSchema = new mongoose.Schema(
     },
     items: [cartItemSchema],
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
+// Virtuals
 cartSchema.virtual("totalItems").get(function () {
   return this.items.reduce((sum, i) => sum + i.quantity, 0);
 });
@@ -42,5 +35,8 @@ cartSchema.virtual("subtotal").get(function () {
     0
   );
 });
+
+// Index for faster user lookups
+cartSchema.index({ user: 1 }, { unique: true });
 
 module.exports = mongoose.model("Cart", cartSchema);

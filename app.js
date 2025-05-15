@@ -4,9 +4,12 @@ const helmet = require("helmet");
 const morgan = require("morgan");
 const cookieParser = require("cookie-parser");
 require("express-async-errors");
+
 const auth = require("./middleware/auth");
+const { errorHandler } = require("./middleware/errorMiddleware");
+
 const authRoutes = require("./routes/authRoute");
-const categoryRoute = require("./routes/categoryRoute");
+const categoryRoutes = require("./routes/categoryRoute");
 const productRoutes = require("./routes/productRoutes");
 const cartRoutes = require("./routes/cartRoutes");
 const wishlistRoutes = require("./routes/wishlistRoutes");
@@ -20,24 +23,21 @@ app.use(morgan("dev"));
 app.use(express.json());
 app.use(cookieParser());
 
-// Routes Placeholder
+// Health Check Route
 app.get("/", (req, res) => {
   res.send("✅ API is Running...");
 });
 
-// Routes
+// Public Routes
 app.use("/api/auth", authRoutes);
-app.use("/api/categories", categoryRoute);
+app.use("/api/categories", categoryRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/wishlist", wishlistRoutes);
 
-//Protected Routes
+// Protected Routes
 app.use("/api/cart", auth, cartRoutes);
 
-// Error Handler (Basic)
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ success: false, message: err.message });
-});
+// Centralized Error Handler (MUST be last)
+app.use(errorHandler);
 
 module.exports = app;

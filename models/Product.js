@@ -1,4 +1,3 @@
-// models/Product.js
 const mongoose = require("mongoose");
 
 const productSchema = new mongoose.Schema(
@@ -10,14 +9,13 @@ const productSchema = new mongoose.Schema(
       required: [true, "Product description is required"],
     },
     shortDescription: { type: String },
-    price: { type: Number, required: [true, "Price is required"], index: true },
+    price: { type: Number, required: [true, "Price is required"] },
     discountPrice: { type: Number, default: null },
-    sku: { type: String, unique: true },
+    sku: { type: String, unique: true, sparse: true }, // sparse allows nulls
     categories: {
       type: [{ type: mongoose.Schema.Types.ObjectId, ref: "Category" }],
       required: true,
       validate: (v) => Array.isArray(v) && v.length > 0,
-      index: true, // <— for fast lookups by category
     },
     sizes: { type: [String], default: [] },
     colors: { type: [String], default: [] },
@@ -27,7 +25,7 @@ const productSchema = new mongoose.Schema(
     },
     stock: { type: Number, required: true, default: 0, index: true },
     isFeatured: { type: Boolean, default: false },
-    isActive: { type: Boolean, default: true, index: true },
+    isActive: { type: Boolean, default: true },
     tags: { type: [String], default: [], index: true },
     rating: {
       average: { type: Number, default: 0 },
@@ -37,7 +35,7 @@ const productSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Compound index for common sort/filter patterns
+// Compound index for faster category-based filtering
 productSchema.index({ categories: 1, price: 1, isActive: 1 });
 
 module.exports = mongoose.model("Product", productSchema);

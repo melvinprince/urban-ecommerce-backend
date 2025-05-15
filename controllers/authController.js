@@ -1,22 +1,27 @@
 const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const { sendResponse } = require("../middleware/responseMiddleware");
 
-exports.registerUser = async (req, res) => {
+exports.registerUser = async (req, res, next) => {
   const { name, email, password, repeatPassword } = req.body;
 
-  if (!name || !email || !password || !repeatPassword) {
-    return res.status(400).json({ message: "All fields are required" });
-  }
-
-  if (password !== repeatPassword) {
-    return res.status(400).json({ message: "Passwords do not match" });
-  }
-
   try {
+    if (!name || !email || !password || !repeatPassword) {
+      res.status(400);
+      throw new Error("All fields are required");
+    }
+
+    if (password !== repeatPassword) {
+      res.status(400);
+      throw new Error("Passwords do not match");
+    }
+
     const userExists = await User.findOne({ email });
+
     if (userExists) {
-      return res.status(400).json({ message: "User already exists" });
+      res.status(400);
+      throw new Error("User already exists");
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -27,39 +32,48 @@ exports.registerUser = async (req, res) => {
       password: hashedPassword,
     });
 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: process.env.JWT_EXPIRATION,
-    });
+    const token = jwt.sign(
+      { id: user._id, name: user.name, email: user.email, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRATION }
+    );
 
-    res.status(201).json({
-      message: "User registered successfully",
-      user: { id: user._id, name: user.name, email: user.email },
+    // ✅ Use sendResponse helper
+    sendResponse(res, 201, "User registered successfully", {
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
       token,
     });
   } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
+    next(error);
   }
 };
 
-//login
-exports.loginUser = async (req, res) => {
+exports.loginUser = async (req, res, next) => {
   const { email, password } = req.body;
 
-  if (!email || !password) {
-    return res.status(400).json({ message: "Email and password are required" });
-  }
-
   try {
+    if (!email || !password) {
+      res.status(400);
+      throw new Error("Email and password are required");
+    }
+
     const user = await User.findOne({ email });
 
     if (!user) {
-      return res.status(400).json({ message: "Invalid email or password" });
+      res.status(400);
+      throw new Error("Invalid email or password");
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
-      return res.status(400).json({ message: "Invalid email or password" });
+      res.status(400);
+      throw new Error("Invalid email or password");
     }
 
     const token = jwt.sign(
@@ -68,8 +82,11 @@ exports.loginUser = async (req, res) => {
       { expiresIn: process.env.JWT_EXPIRATION }
     );
 
-    res.status(200).json({ message: "Login successful", token });
+    // ✅ Use sendResponse helper
+    sendResponse(res, 200, "Login successful", {
+      token,
+    });
   } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
+    next(error);
   }
 };

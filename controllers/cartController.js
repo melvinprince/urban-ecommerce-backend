@@ -1,9 +1,8 @@
-// controllers/cartController.js
-
+const { sendResponse } = require("../middleware/responseMiddleware");
 const Cart = require("../models/Cart");
 
 // GET /api/cart
-exports.getCart = async (req, res) => {
+exports.getCart = async (req, res, next) => {
   try {
     const userId = req.user._id;
 
@@ -20,34 +19,30 @@ exports.getCart = async (req, res) => {
       });
     }
 
-    return res.json({
-      success: true,
-      data: cart.items,
+    sendResponse(res, 200, "Cart fetched successfully", {
+      items: cart.items,
       totalItems: cart.totalItems,
       subtotal: cart.subtotal,
     });
-  } catch (err) {
-    console.error("cartController.getCart:", err);
-    return res.status(500).json({ success: false, message: "Server error" });
+  } catch (error) {
+    next(error);
   }
 };
 
 // POST /api/cart
-exports.addOrUpdateCart = async (req, res) => {
+exports.addOrUpdateCart = async (req, res, next) => {
   try {
     const userId = req.user._id;
     const { productId, quantity = 1, size, color } = req.body;
 
     if (!productId) {
-      return res
-        .status(400)
-        .json({ success: false, message: "productId is required" });
+      res.status(400);
+      throw new Error("Product ID is required");
     }
 
     let cart = await Cart.findOne({ user: userId });
     if (!cart) cart = new Cart({ user: userId, items: [] });
 
-    // find existing item
     const idx = cart.items.findIndex(
       (item) =>
         item.product.toString() === productId &&
@@ -70,26 +65,27 @@ exports.addOrUpdateCart = async (req, res) => {
       select: "title slug images price discountPrice",
     });
 
-    return res.json({
-      success: true,
-      data: cart.items,
+    sendResponse(res, 200, "Cart updated successfully", {
+      items: cart.items,
       totalItems: cart.totalItems,
       subtotal: cart.subtotal,
     });
-  } catch (err) {
-    console.error("cartController.addOrUpdateCart:", err);
-    return res.status(500).json({ success: false, message: "Server error" });
+  } catch (error) {
+    next(error);
   }
 };
 
 // DELETE /api/cart/:itemId
-exports.removeCartItem = async (req, res) => {
+exports.removeCartItem = async (req, res, next) => {
   try {
     const userId = req.user._id;
     const { itemId } = req.params;
 
     let cart = await Cart.findOne({ user: userId });
-    if (!cart) return res.json({ success: true, data: [] });
+    if (!cart) {
+      res.status(404);
+      throw new Error("Cart not found");
+    }
 
     cart.items = cart.items.filter((i) => i._id.toString() !== itemId);
     await cart.save();
@@ -98,20 +94,18 @@ exports.removeCartItem = async (req, res) => {
       select: "title slug images price discountPrice",
     });
 
-    return res.json({
-      success: true,
-      data: cart.items,
+    sendResponse(res, 200, "Cart item removed successfully", {
+      items: cart.items,
       totalItems: cart.totalItems,
       subtotal: cart.subtotal,
     });
-  } catch (err) {
-    console.error("cartController.removeCartItem:", err);
-    return res.status(500).json({ success: false, message: "Server error" });
+  } catch (error) {
+    next(error);
   }
 };
 
 // PUT /api/cart/:itemId
-exports.updateCartItem = async (req, res) => {
+exports.updateCartItem = async (req, res, next) => {
   try {
     const userId = req.user._id;
     const { itemId } = req.params;
@@ -119,16 +113,14 @@ exports.updateCartItem = async (req, res) => {
 
     let cart = await Cart.findOne({ user: userId });
     if (!cart) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Cart not found" });
+      res.status(404);
+      throw new Error("Cart not found");
     }
 
     const item = cart.items.id(itemId);
     if (!item) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Cart item not found" });
+      res.status(404);
+      throw new Error("Cart item not found");
     }
 
     if (quantity != null) item.quantity = quantity;
@@ -142,14 +134,12 @@ exports.updateCartItem = async (req, res) => {
       select: "title slug images price discountPrice",
     });
 
-    return res.json({
-      success: true,
-      data: cart.items,
+    sendResponse(res, 200, "Cart item updated successfully", {
+      items: cart.items,
       totalItems: cart.totalItems,
       subtotal: cart.subtotal,
     });
-  } catch (err) {
-    console.error("cartController.updateCartItem:", err);
-    return res.status(500).json({ success: false, message: "Server error" });
+  } catch (error) {
+    next(error);
   }
 };
