@@ -6,6 +6,7 @@ const cookieParser = require("cookie-parser");
 require("express-async-errors");
 const authRoutes = require("./routes/authRoute");
 const categoryRoute = require("./routes/categoryRoute");
+const productRoutes = require("./routes/productRoutes");
 
 const app = express();
 
@@ -24,6 +25,7 @@ app.get("/", (req, res) => {
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/categories", categoryRoute);
+app.use("/api/products", productRoutes);
 
 // Error Handler (Basic)
 app.use((err, req, res, next) => {
