@@ -51,14 +51,15 @@ exports.getProducts = async (req, res, next) => {
       .select("title slug price discountPrice images shortDescription")
       .lean();
 
-    sendResponse(res, 200, "Products fetched successfully", {
+    console.log("Products fetched:", products.length);
+
+    sendResponse(res, 200, "Products fetched successfully", products, {
       meta: {
         total,
         page: Number(page),
         limit: Number(limit),
         pages: Math.ceil(total / limit),
       },
-      products,
     });
   } catch (error) {
     next(error);

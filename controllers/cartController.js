@@ -8,14 +8,14 @@ exports.getCart = async (req, res, next) => {
 
     let cart = await Cart.findOne({ user: userId }).populate({
       path: "items.product",
-      select: "title slug images price discountPrice",
+      select: "title slug images price discountPrice sizes colors stock",
     });
 
     if (!cart) {
       cart = await Cart.create({ user: userId, items: [] });
       await cart.populate({
         path: "items.product",
-        select: "title slug images price discountPrice",
+        select: "title slug images price discountPrice sizes colors stock",
       });
     }
 
@@ -62,7 +62,7 @@ exports.addOrUpdateCart = async (req, res, next) => {
     await cart.save();
     await cart.populate({
       path: "items.product",
-      select: "title slug images price discountPrice",
+      select: "title slug images price discountPrice sizes colors stock",
     });
 
     sendResponse(res, 200, "Cart updated successfully", {
@@ -91,7 +91,7 @@ exports.removeCartItem = async (req, res, next) => {
     await cart.save();
     await cart.populate({
       path: "items.product",
-      select: "title slug images price discountPrice",
+      select: "title slug images price discountPrice sizes colors stock",
     });
 
     sendResponse(res, 200, "Cart item removed successfully", {
@@ -131,7 +131,7 @@ exports.updateCartItem = async (req, res, next) => {
     await cart.save();
     await cart.populate({
       path: "items.product",
-      select: "title slug images price discountPrice",
+      select: "title slug images price discountPrice sizes colors stock",
     });
 
     sendResponse(res, 200, "Cart item updated successfully", {
