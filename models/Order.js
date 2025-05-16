@@ -1,63 +1,38 @@
-// models/Order.js
-// Tracks every purchase, its items, payment and shipping status
-
 const mongoose = require("mongoose");
-
-const orderItemSchema = new mongoose.Schema(
-  {
-    product: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Product",
-      required: true,
-    },
-    title: String, // snapshot of title at purchase time
-    price: Number, // snapshot of price at purchase time
-    quantity: Number,
-    size: String,
-    color: String,
-  },
-  { _id: false }
-);
 
 const orderSchema = new mongoose.Schema(
   {
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+      required: false,
     },
-    items: [orderItemSchema], // list of purchased items
-    shippingAddress: {
+    items: [
+      {
+        product: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Product",
+          required: true,
+        },
+        quantity: { type: Number, required: true },
+        size: String,
+        color: String,
+        price: { type: Number, required: true },
+      },
+    ],
+    address: {
       fullName: String,
-      addressLine1: String,
-      addressLine2: String,
-      city: String,
-      state: String,
-      country: String,
-      postalCode: String,
+      email: String,
       phone: String,
+      street: String,
+      city: String,
+      postalCode: String,
+      country: String,
     },
-    paymentMethod: {
-      type: String,
-      enum: ["Card", "GooglePay", "ApplePay", "CashOnDelivery"],
-      required: true,
-    },
-    paymentStatus: {
-      type: String,
-      enum: ["Pending", "Paid", "Refunded"],
-      default: "Pending",
-    },
-    totalAmount: {
-      type: Number,
-      required: true,
-    },
-    status: {
-      type: String,
-      enum: ["Processing", "Shipped", "Delivered", "Cancelled"],
-      default: "Processing",
-    },
-    trackingNumber: String, // if you integrate a courier
-    invoiceUrl: String, // link to PDF invoice if generated
+    paymentMethod: { type: String, enum: ["paypal", "cod"], required: true },
+    isPaid: { type: Boolean, default: false },
+    paidAt: Date,
+    totalAmount: { type: Number, required: true },
   },
   { timestamps: true }
 );
