@@ -143,3 +143,35 @@ exports.updateCartItem = async (req, res, next) => {
     next(error);
   }
 };
+
+// DELETE /api/cart/clear
+exports.clearCart = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+
+    let cart = await Cart.findOne({ user: userId });
+    if (!cart) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Cart not found" });
+    }
+
+    // Clear items and save
+    cart.items = [];
+    await cart.save();
+
+    // ✅ Re-fetch the cart so virtuals recalculate correctly
+    cart = await Cart.findOne({ user: userId }).populate({
+      path: "items.product",
+      select: "title slug images price discountPrice sizes colors stock",
+    });
+
+    sendResponse(res, 200, "Cart cleared successfully", {
+      items: cart.items,
+      totalItems: cart.totalItems,
+      subtotal: cart.subtotal,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
