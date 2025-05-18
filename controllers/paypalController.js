@@ -3,6 +3,7 @@ const checkoutNodeJssdk = require("@paypal/checkout-server-sdk");
 
 exports.createPaypalOrder = async (req, res, next) => {
   try {
+    console.log("🔁 [PayPal] Received create order request", req.body);
     const request = new checkoutNodeJssdk.orders.OrdersCreateRequest();
     request.requestBody({
       intent: "CAPTURE",
@@ -10,7 +11,7 @@ exports.createPaypalOrder = async (req, res, next) => {
         {
           amount: {
             currency_code: "USD",
-            value: req.body.totalAmount.toFixed(2),
+            value: Number(req.body.totalAmount).toFixed(2), // ✅ FIXED
           },
         },
       ],
