@@ -10,10 +10,15 @@ exports.createOrder = async (req, res, next) => {
       throw new Error("No items to order");
     }
 
-    const lastOrder = await Order.findOne().sort({ customOrderId: -1 });
-    const newCustomOrderId = lastOrder?.customOrderId
-      ? lastOrder.customOrderId + 1
-      : 10000;
+    // Generate unique random 6-digit order ID
+    let customOrderId;
+    let isUnique = false;
+
+    while (!isUnique) {
+      customOrderId = Math.floor(100000 + Math.random() * 900000); // 6-digit number
+      const existing = await Order.findOne({ customOrderId });
+      if (!existing) isUnique = true;
+    }
 
     const order = await Order.create({
       user: req.user?._id,
@@ -23,7 +28,7 @@ exports.createOrder = async (req, res, next) => {
       isPaid,
       paidAt: isPaid ? new Date() : null,
       totalAmount,
-      customOrderId: newCustomOrderId,
+      customOrderId,
     });
 
     sendResponse(res, 201, "Order placed successfully", order);
@@ -95,3 +100,31 @@ exports.getOrderByCustomId = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Get all orders by guest email (no auth)
+// @route   GET /api/orders/email/:email
+// @access  Public
+exports.getOrdersByEmail = async (req, res, next) => {
+  try {
+    const { email } = req.params;
+    if (!email) {
+      res.status(400);
+      throw new Error("Email is required");
+    }
+
+    const orders = await Order.find({ "address.email": email })
+      .sort({ createdAt: -1 })
+      .select("-__v")
+      .populate("items.product", "title price images slug");
+
+    if (!orders.length) {
+      res.status(404);
+      throw new Error("No orders found for this email");
+    }
+
+    sendResponse(res, 200, "Orders fetched successfully", orders);
+  } catch (error) {
+    next(error);
+  }
+};
+// @desc    Get all orders (admin only)

@@ -5,6 +5,7 @@ const {
   getOrderById,
   getMyOrders,
   getOrderByCustomId,
+  getOrdersByEmail,
 } = require("../controllers/orderController");
 
 const auth = require("../middleware/auth");
@@ -21,5 +22,8 @@ router.get("/:id", authOptional, getOrderById);
 
 //Public route for order confirmation page with custom ID
 router.get("/by-custom/:customId", getOrderByCustomId);
+
+//Public route for order confirmation page with email
+router.get("/email/:email", getOrdersByEmail);
 
 module.exports = router;
