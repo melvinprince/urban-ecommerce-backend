@@ -22,6 +22,20 @@ const userSchema = new mongoose.Schema(
       enum: ["adm", "usr"],
       default: "usr",
     },
+    addresses: [
+      {
+        label: { type: String, default: "My Address" }, // e.g. Home, Office
+        fullName: String,
+        email: String,
+        phone: String,
+        street: String,
+        city: String,
+        postalCode: String,
+        country: String,
+        isDefault: { type: Boolean, default: false },
+        _id: false, // To avoid nested _id in each address object (optional)
+      },
+    ],
   },
   { timestamps: true }
 );

@@ -15,6 +15,7 @@ const cartRoutes = require("./routes/cartRoutes");
 const wishlistRoutes = require("./routes/wishlistRoutes");
 const orderRoutes = require("./routes/orderRoutes");
 const paypalRoutes = require("./routes/paypalRoutes");
+const addressRoutes = require("./routes/addressRoutes");
 
 const app = express();
 
@@ -40,6 +41,7 @@ app.use("/api/paypal", paypalRoutes);
 
 // Protected Routes
 app.use("/api/cart", auth, cartRoutes);
+app.use("/api/user/addresses", auth, addressRoutes); // 🆕 ADDED HERE
 
 // Centralized Error Handler (MUST be last)
 app.use(errorHandler);
