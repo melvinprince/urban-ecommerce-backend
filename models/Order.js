@@ -43,7 +43,25 @@ const orderSchema = new mongoose.Schema(
       unique: true,
       required: true,
     },
+    status: {
+      type: String,
+      enum: [
+        "pending",
+        "processing",
+        "shipped",
+        "delivered",
+        "cancelled",
+        "refunded",
+      ],
+      default: "pending",
+    },
+    canModify: {
+      type: Boolean,
+      default: true,
+    },
+    cancelledAt: Date,
   },
+
   { timestamps: true }
 );
 

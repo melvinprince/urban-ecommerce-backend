@@ -128,3 +128,79 @@ exports.getOrdersByEmail = async (req, res, next) => {
   }
 };
 // @desc    Get all orders (admin only)
+
+exports.cancelOrder = async (req, res, next) => {
+  try {
+    const { customOrderId } = req.params;
+
+    const order = await Order.findOne({ customOrderId });
+
+    if (!order) {
+      res.status(404);
+      throw new Error("Order not found");
+    }
+
+    // Auth check — only order owner can cancel
+    if (
+      order.user &&
+      req.user &&
+      order.user.toString() !== req.user._id.toString()
+    ) {
+      res.status(403);
+      throw new Error("Not authorized to cancel this order");
+    }
+
+    if (!order.canModify || order.status === "shipped") {
+      res.status(400);
+      throw new Error("Order can no longer be cancelled");
+    }
+
+    // Update order status
+    order.status = "cancelled";
+    order.canModify = false;
+    order.cancelledAt = new Date();
+    await order.save();
+
+    sendResponse(res, 200, "Order cancelled successfully", order);
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.cancelOrderAsGuest = async (req, res, next) => {
+  try {
+    const { customOrderId, email } = req.body;
+
+    if (!customOrderId || !email) {
+      res.status(400);
+      throw new Error("Order ID and email are required");
+    }
+
+    const order = await Order.findOne({ customOrderId });
+
+    if (!order) {
+      res.status(404);
+      throw new Error("Order not found");
+    }
+
+    // Check if guest email matches order's address
+    if (order.address.email !== email) {
+      res.status(403);
+      throw new Error("Email does not match order record");
+    }
+
+    if (!order.canModify || order.status === "shipped") {
+      res.status(400);
+      throw new Error("Order can no longer be cancelled");
+    }
+
+    order.status = "cancelled";
+    order.canModify = false;
+    order.cancelledAt = new Date();
+
+    await order.save();
+    sendResponse(res, 200, "Order cancelled successfully", order);
+  } catch (error) {
+    next(error);
+  }
+};

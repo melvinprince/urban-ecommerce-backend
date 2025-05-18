@@ -6,6 +6,8 @@ const {
   getMyOrders,
   getOrderByCustomId,
   getOrdersByEmail,
+  cancelOrder,
+  cancelOrderAsGuest,
 } = require("../controllers/orderController");
 
 const auth = require("../middleware/auth");
@@ -25,5 +27,10 @@ router.get("/by-custom/:customId", getOrderByCustomId);
 
 //Public route for order confirmation page with email
 router.get("/email/:email", getOrdersByEmail);
+
+//Requires login to cancel order
+router.patch("/:customOrderId/cancel", auth, cancelOrder);
+// Public route for guest cancellation
+router.patch("/cancel-guest", cancelOrderAsGuest);
 
 module.exports = router;
