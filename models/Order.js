@@ -29,10 +29,20 @@ const orderSchema = new mongoose.Schema(
       postalCode: String,
       country: String,
     },
-    paymentMethod: { type: String, enum: ["paypal", "cod"], required: true },
+    paymentMethod: {
+      type: String,
+      enum: ["paypal", "cod"],
+      required: true,
+    },
     isPaid: { type: Boolean, default: false },
     paidAt: Date,
     totalAmount: { type: Number, required: true },
+
+    customOrderId: {
+      type: Number,
+      unique: true,
+      required: true,
+    },
   },
   { timestamps: true }
 );
