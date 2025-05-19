@@ -1,13 +1,29 @@
-// models/Ticket.js
-// Customer support tickets and admin/user conversation thread
-
 const mongoose = require("mongoose");
+
+const attachmentSchema = new mongoose.Schema(
+  {
+    url: { type: String, required: true },
+    type: { type: String, enum: ["image", "pdf", "video"], required: true },
+  },
+  { _id: false }
+);
 
 const messageSchema = new mongoose.Schema(
   {
-    from: { type: String, enum: ["user", "admin"], required: true },
-    message: { type: String, required: true },
-    createdAt: { type: Date, default: Date.now },
+    sender: {
+      type: String,
+      enum: ["user", "admin"],
+      required: true,
+    },
+    text: {
+      type: String,
+      required: true,
+    },
+    date: {
+      type: Date,
+      default: Date.now,
+    },
+    attachments: [attachmentSchema], // ✅ New field
   },
   { _id: false }
 );
@@ -19,14 +35,19 @@ const ticketSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
-    subject: { type: String, required: true },
-    initialMessage: { type: String, required: true },
+    subject: {
+      type: String,
+      required: true,
+    },
+    orderRef: {
+      type: String, // customOrderId (optional)
+    },
     status: {
       type: String,
-      enum: ["Open", "InProgress", "Closed"],
-      default: "Open",
+      enum: ["open", "replied", "closed"], // changed "answered" → "replied" for clarity
+      default: "open",
     },
-    conversation: [messageSchema], // subsequent replies
+    messages: [messageSchema],
   },
   { timestamps: true }
 );
