@@ -41,7 +41,7 @@ app.use("/api/paypal", paypalRoutes);
 
 // Protected Routes
 app.use("/api/cart", auth, cartRoutes);
-app.use("/api/user/addresses", auth, addressRoutes); // 🆕 ADDED HERE
+app.use("/api/user/addresses", auth, addressRoutes);
 
 // Centralized Error Handler (MUST be last)
 app.use(errorHandler);

@@ -204,3 +204,55 @@ exports.cancelOrderAsGuest = async (req, res, next) => {
     next(error);
   }
 };
+
+exports.editOrder = async (req, res, next) => {
+  try {
+    const { customId } = req.params;
+    const { address, email } = req.body; // 👈 Accept email separately
+
+    const order = await Order.findOne({ customOrderId: customId });
+
+    if (!order) {
+      res.status(404);
+      throw new Error("Order not found");
+    }
+
+    // Check if order is editable
+    if (!order.canModify || order.status === "shipped") {
+      res.status(400);
+      throw new Error("Order can no longer be modified");
+    }
+
+    const isLoggedIn = !!req.user;
+
+    if (isLoggedIn) {
+      // Authenticated user: must be the one who placed the order (if linked)
+      if (order.user && order.user.toString() !== req.user._id.toString()) {
+        res.status(403);
+        throw new Error("Not authorized to edit this order");
+      }
+    } else {
+      // Guest: email must match the original email stored in order.address
+      if (!email || email !== order.address?.email) {
+        res.status(403);
+        throw new Error("Email verification failed");
+      }
+    }
+
+    // ✅ Update allowed fields only
+    if (address) {
+      order.address.fullName = address.fullName || order.address.fullName;
+      order.address.email = address.email || order.address.email;
+      order.address.phone = address.phone || order.address.phone;
+      order.address.street = address.street || order.address.street;
+      order.address.city = address.city || order.address.city;
+      order.address.postalCode = address.postalCode || order.address.postalCode;
+      order.address.country = address.country || order.address.country;
+    }
+
+    await order.save();
+    sendResponse(res, 200, "Order updated successfully", order);
+  } catch (err) {
+    next(err);
+  }
+};

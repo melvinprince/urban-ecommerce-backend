@@ -8,6 +8,7 @@ const {
   getOrdersByEmail,
   cancelOrder,
   cancelOrderAsGuest,
+  editOrder,
 } = require("../controllers/orderController");
 
 const auth = require("../middleware/auth");
@@ -32,5 +33,8 @@ router.get("/email/:email", getOrdersByEmail);
 router.patch("/:customOrderId/cancel", auth, cancelOrder);
 // Public route for guest cancellation
 router.patch("/cancel-guest", cancelOrderAsGuest);
+
+//Edit order
+router.patch("/edit/:customId", authOptional, editOrder);
 
 module.exports = router;
