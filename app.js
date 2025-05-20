@@ -20,6 +20,7 @@ const orderRoutes = require("./routes/orderRoutes");
 const paypalRoutes = require("./routes/paypalRoutes");
 const addressRoutes = require("./routes/addressRoutes");
 const ticketRoutes = require("./routes/ticketRoutes");
+const reviewRoutes = require("./routes/reviewRoutes");
 
 const app = express();
 
@@ -46,6 +47,7 @@ app.use("/api/wishlist", wishlistRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/paypal", paypalRoutes);
 app.use("/api/tickets", ticketRoutes);
+app.use("/api/reviews", reviewRoutes);
 
 // Protected Routes
 app.use("/api/cart", auth, cartRoutes);
