@@ -21,6 +21,7 @@ const paypalRoutes = require("./routes/paypalRoutes");
 const addressRoutes = require("./routes/addressRoutes");
 const ticketRoutes = require("./routes/ticketRoutes");
 const reviewRoutes = require("./routes/reviewRoutes");
+const couponRoutes = require("./routes/couponRoutes");
 
 const app = express();
 
@@ -48,6 +49,7 @@ app.use("/api/orders", orderRoutes);
 app.use("/api/paypal", paypalRoutes);
 app.use("/api/tickets", ticketRoutes);
 app.use("/api/reviews", reviewRoutes);
+app.use("/api/coupons", couponRoutes);
 
 // Protected Routes
 app.use("/api/cart", auth, cartRoutes);
