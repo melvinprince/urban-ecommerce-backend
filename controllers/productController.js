@@ -87,3 +87,59 @@ exports.getProductBySlug = async (req, res, next) => {
     next(error);
   }
 };
+
+// Product Search Controller
+exports.searchProducts = async (req, res, next) => {
+  try {
+    const { q, page = 1, limit = 5 } = req.query;
+    console.log(`[API] Searching for products with query: ${q}`);
+
+    if (!q || q.trim() === "") {
+      return res
+        .status(400)
+        .json({ success: false, message: "Query string is required" });
+    }
+
+    const regex = new RegExp(q, "i");
+
+    const matchingCategories = await Category.find({ name: regex }).select(
+      "_id"
+    );
+    const categoryIds = matchingCategories.map((cat) => cat._id);
+
+    const allMatchedProducts = await Product.find({
+      isActive: true,
+      $or: [
+        { title: regex },
+        { description: regex },
+        { tags: regex },
+        { categories: { $in: categoryIds } },
+      ],
+    }).populate("categories", "name slug");
+
+    const scored = allMatchedProducts.map((product) => {
+      let score = 0;
+      if (regex.test(product.title)) score += 3;
+      if (regex.test(product.description)) score += 2;
+      if (product.tags?.some((tag) => regex.test(tag))) score += 2;
+      if (product.categories?.some((cat) => regex.test(cat.name))) score += 1;
+      return { product, score };
+    });
+
+    const sortedProducts = scored
+      .sort((a, b) => b.score - a.score)
+      .map((item) => item.product);
+
+    const start = (page - 1) * limit;
+    const paginated = sortedProducts.slice(start, start + Number(limit));
+
+    sendResponse(res, 200, "Products fetched successfully", {
+      products: paginated,
+      total: sortedProducts.length,
+      page: Number(page),
+      pages: Math.ceil(sortedProducts.length / limit),
+    });
+  } catch (err) {
+    next(err);
+  }
+};
