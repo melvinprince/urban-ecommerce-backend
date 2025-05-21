@@ -9,18 +9,19 @@ const { sendResponse } = require("../middleware/responseMiddleware"); // ⬅️ 
 exports.getProducts = async (req, res, next) => {
   try {
     const {
-      category, // can be single slug or comma-list
+      category,
       size,
       color,
       priceMin,
       priceMax,
-      sort = "createdAt:desc", // newest default
+      sort = "createdAt:desc",
       page = 1,
       limit = 20,
       search,
+      discountOnly,
+      tags,
     } = req.query;
 
-    /* helper: normalise list-style query values */
     const toList = (v) =>
       Array.isArray(v)
         ? v
@@ -28,7 +29,6 @@ exports.getProducts = async (req, res, next) => {
         ? v.split(",").filter(Boolean)
         : [];
 
-    /* ───────── building filter ───────── */
     const filter = { isActive: true };
 
     // category slugs → ObjectIds
@@ -62,14 +62,25 @@ exports.getProducts = async (req, res, next) => {
       if (colors.length) filter.colors = { $in: colors };
     }
 
-    // simple keyword search
+    // keyword search
     if (search && search.trim()) {
       const regex = new RegExp(search.trim(), "i");
       filter.$or = [{ title: regex }, { description: regex }, { tags: regex }];
     }
 
-    /* ───────── sort mapping ───────── */
-    let sortOption = { createdAt: -1 }; // newest default
+    // tag-based filter
+    if (tags) {
+      const tagList = toList(tags);
+      if (tagList.length) filter.tags = { $in: tagList };
+    }
+
+    // discounted only filter (discountPrice < price)
+    if (discountOnly === "true") {
+      filter.discountPrice = { $ne: null };
+    }
+
+    // sorting
+    let sortOption = { createdAt: -1 };
     switch (sort) {
       case "priceAsc":
         sortOption = { price: 1 };
@@ -80,20 +91,21 @@ exports.getProducts = async (req, res, next) => {
       case "popularity":
         sortOption = { "rating.count": -1 };
         break;
+      case "rating":
+        sortOption = { "rating.average": -1 };
+        break;
       case "createdAt:asc":
       case "createdAt:desc":
-        const [f, dir] = sort.split(":");
-        sortOption = { [f]: dir === "asc" ? 1 : -1 };
+        const [field, dir] = sort.split(":");
+        sortOption = { [field]: dir === "asc" ? 1 : -1 };
         break;
       default:
-        // keep default newest
         break;
     }
 
     const skip = (Number(page) - 1) * Number(limit);
 
-    /* ───────── query & response ───────── */
-    const [total, products] = await Promise.all([
+    const [total, rawProducts] = await Promise.all([
       Product.countDocuments(filter),
       Product.find(filter)
         .sort(sortOption)
@@ -102,6 +114,14 @@ exports.getProducts = async (req, res, next) => {
         .select("title slug price discountPrice images shortDescription")
         .lean(),
     ]);
+
+    // Final discount validation (for discountOnly, if needed)
+    const products =
+      discountOnly === "true"
+        ? rawProducts.filter(
+            (p) => p.discountPrice !== null && p.discountPrice < p.price
+          )
+        : rawProducts;
 
     sendResponse(res, 200, "Products fetched successfully", products, {
       meta: {
