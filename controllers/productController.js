@@ -91,56 +91,135 @@ exports.getProductBySlug = async (req, res, next) => {
 // Product Search Controller
 exports.searchProducts = async (req, res, next) => {
   try {
-    const { q, page = 1, limit = 5 } = req.query;
-    console.log(`[API] Searching for products with query: ${q}`);
+    const {
+      q,
+      category,
+      size,
+      color,
+      priceMin,
+      priceMax,
+      sort = "createdAt:desc",
+      page = 1,
+      limit = 10,
+    } = req.query;
 
-    if (!q || q.trim() === "") {
-      return res
-        .status(400)
-        .json({ success: false, message: "Query string is required" });
+    console.log("🔍 [API] Search query received:", req.query);
+
+    const filter = { isActive: true };
+
+    // Apply text search if query string is valid
+    if (typeof q === "string" && q.trim() !== "") {
+      const regex = new RegExp(q.trim(), "i");
+
+      filter.$or = [{ title: regex }, { description: regex }, { tags: regex }];
+
+      console.log("✅ Applied RegExp filter:", regex);
+    } else {
+      console.log("⚠️ No search query provided or invalid.");
     }
 
-    const regex = new RegExp(q, "i");
+    // CATEGORY: Resolve slugs to IDs
+    if (category) {
+      const slugs = Array.isArray(category) ? category : [category];
+      const catDocs = await Category.find({ slug: { $in: slugs } }).select(
+        "_id"
+      );
+      const ids = catDocs.map((c) => c._id);
+      console.log("🔍 Category documents found:", catDocs);
+      if (ids.length > 0) {
+        filter.categories = { $in: ids };
+        console.log("✅ Filter: category IDs =", ids);
+      } else {
+        console.log("⚠️ No matching category slugs found:", slugs);
+      }
+    }
 
-    const matchingCategories = await Category.find({ name: regex }).select(
-      "_id"
+    // SIZE filter (normalized to uppercase)
+    if (size) {
+      const sizes = Array.isArray(size) ? size : [size];
+      const normalized = sizes.map((s) => s.toUpperCase());
+      filter.sizes = { $in: normalized };
+      console.log("✅ Filter: sizes =", normalized);
+    }
+
+    // COLOR filter (capitalize first letter)
+    if (color) {
+      const colors = Array.isArray(color) ? color : [color];
+      const normalized = colors.map(
+        (c) => c.charAt(0).toUpperCase() + c.slice(1).toLowerCase()
+      );
+      filter.colors = { $in: normalized };
+      console.log("✅ Filter: colors =", normalized);
+    }
+
+    // PRICE RANGE filter
+    if (priceMin || priceMax) {
+      filter.price = {};
+      if (priceMin) {
+        filter.price.$gte = parseFloat(priceMin);
+        console.log("✅ Filter: priceMin =", priceMin);
+      }
+      if (priceMax) {
+        filter.price.$lte = parseFloat(priceMax);
+        console.log("✅ Filter: priceMax =", priceMax);
+      }
+    }
+
+    // Sort logic
+    /* -------- SORT LOGIC -------- */
+    let sortOption = { createdAt: -1 }; // default “newest”
+
+    switch (sort) {
+      case "priceAsc":
+        sortOption = { price: 1 };
+        break;
+      case "priceDesc":
+        sortOption = { price: -1 };
+        break;
+      case "popularity":
+        sortOption = { "rating.count": -1 };
+        break;
+      case "newest":
+      default:
+        sortOption = { createdAt: -1 };
+    }
+
+    // Pagination logic
+    const skip = (Number(page) - 1) * Number(limit);
+
+    // Final filter debug
+    console.log("🧪 Final Mongo Filter:", JSON.stringify(filter, null, 2));
+    console.log(
+      "⚙️ Sort Option:",
+      sortOption,
+      " | Page:",
+      page,
+      " | Limit:",
+      limit
     );
-    const categoryIds = matchingCategories.map((cat) => cat._id);
 
-    const allMatchedProducts = await Product.find({
-      isActive: true,
-      $or: [
-        { title: regex },
-        { description: regex },
-        { tags: regex },
-        { categories: { $in: categoryIds } },
-      ],
-    }).populate("categories", "name slug");
+    // Query
+    const [products, total] = await Promise.all([
+      Product.find(filter)
+        .sort(sortOption)
+        .skip(skip)
+        .limit(Number(limit))
+        .populate("categories", "name slug")
+        .lean(),
+      Product.countDocuments(filter),
+    ]);
 
-    const scored = allMatchedProducts.map((product) => {
-      let score = 0;
-      if (regex.test(product.title)) score += 3;
-      if (regex.test(product.description)) score += 2;
-      if (product.tags?.some((tag) => regex.test(tag))) score += 2;
-      if (product.categories?.some((cat) => regex.test(cat.name))) score += 1;
-      return { product, score };
-    });
+    console.log(`✅ Products fetched: ${products.length} / ${total}`);
 
-    const sortedProducts = scored
-      .sort((a, b) => b.score - a.score)
-      .map((item) => item.product);
-
-    const start = (page - 1) * limit;
-    const paginated = sortedProducts.slice(start, start + Number(limit));
-
-    sendResponse(res, 200, "Products fetched successfully", {
-      products: paginated,
-      total: sortedProducts.length,
+    return sendResponse(res, 200, "Products fetched successfully", {
+      products,
+      total,
       page: Number(page),
-      pages: Math.ceil(sortedProducts.length / limit),
+      pages: Math.ceil(total / limit),
     });
-  } catch (err) {
-    next(err);
+  } catch (error) {
+    console.error("❌ Error in searchProducts:", error);
+    next(error);
   }
 };
 
