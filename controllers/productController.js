@@ -143,3 +143,24 @@ exports.searchProducts = async (req, res, next) => {
     next(err);
   }
 };
+
+exports.getProductsByIds = async (req, res, next) => {
+  try {
+    const { ids } = req.body;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Product IDs array is required",
+      });
+    }
+
+    const products = await Product.find({ _id: { $in: ids }, isActive: true })
+      .select("title slug price discountPrice images shortDescription")
+      .lean();
+
+    sendResponse(res, 200, "Products fetched by IDs", products);
+  } catch (error) {
+    next(error);
+  }
+};
