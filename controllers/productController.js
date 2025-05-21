@@ -153,8 +153,6 @@ exports.searchProducts = async (req, res, next) => {
       limit = 10,
     } = req.query;
 
-    console.log("🔍 [API] Search query received:", req.query);
-
     const filter = { isActive: true };
 
     // Apply text search if query string is valid
@@ -162,8 +160,6 @@ exports.searchProducts = async (req, res, next) => {
       const regex = new RegExp(q.trim(), "i");
 
       filter.$or = [{ title: regex }, { description: regex }, { tags: regex }];
-
-      console.log("✅ Applied RegExp filter:", regex);
     } else {
       console.log("⚠️ No search query provided or invalid.");
     }
@@ -175,10 +171,8 @@ exports.searchProducts = async (req, res, next) => {
         "_id"
       );
       const ids = catDocs.map((c) => c._id);
-      console.log("🔍 Category documents found:", catDocs);
       if (ids.length > 0) {
         filter.categories = { $in: ids };
-        console.log("✅ Filter: category IDs =", ids);
       } else {
         console.log("⚠️ No matching category slugs found:", slugs);
       }
@@ -189,7 +183,6 @@ exports.searchProducts = async (req, res, next) => {
       const sizes = Array.isArray(size) ? size : [size];
       const normalized = sizes.map((s) => s.toUpperCase());
       filter.sizes = { $in: normalized };
-      console.log("✅ Filter: sizes =", normalized);
     }
 
     // COLOR filter (capitalize first letter)
@@ -199,7 +192,6 @@ exports.searchProducts = async (req, res, next) => {
         (c) => c.charAt(0).toUpperCase() + c.slice(1).toLowerCase()
       );
       filter.colors = { $in: normalized };
-      console.log("✅ Filter: colors =", normalized);
     }
 
     // PRICE RANGE filter
@@ -207,11 +199,9 @@ exports.searchProducts = async (req, res, next) => {
       filter.price = {};
       if (priceMin) {
         filter.price.$gte = parseFloat(priceMin);
-        console.log("✅ Filter: priceMin =", priceMin);
       }
       if (priceMax) {
         filter.price.$lte = parseFloat(priceMax);
-        console.log("✅ Filter: priceMax =", priceMax);
       }
     }
 
@@ -237,17 +227,6 @@ exports.searchProducts = async (req, res, next) => {
     // Pagination logic
     const skip = (Number(page) - 1) * Number(limit);
 
-    // Final filter debug
-    console.log("🧪 Final Mongo Filter:", JSON.stringify(filter, null, 2));
-    console.log(
-      "⚙️ Sort Option:",
-      sortOption,
-      " | Page:",
-      page,
-      " | Limit:",
-      limit
-    );
-
     // Query
     const [products, total] = await Promise.all([
       Product.find(filter)
@@ -259,8 +238,6 @@ exports.searchProducts = async (req, res, next) => {
       Product.countDocuments(filter),
     ]);
 
-    console.log(`✅ Products fetched: ${products.length} / ${total}`);
-
     return sendResponse(res, 200, "Products fetched successfully", {
       products,
       total,
@@ -268,7 +245,6 @@ exports.searchProducts = async (req, res, next) => {
       pages: Math.ceil(total / limit),
     });
   } catch (error) {
-    console.error("❌ Error in searchProducts:", error);
     next(error);
   }
 };
