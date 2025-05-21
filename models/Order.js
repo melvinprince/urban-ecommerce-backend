@@ -1,3 +1,4 @@
+// backend/models/Order.js
 const mongoose = require("mongoose");
 
 const orderSchema = new mongoose.Schema(
@@ -5,7 +6,7 @@ const orderSchema = new mongoose.Schema(
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: false,
+      required: false, // optional for guest checkouts
     },
     items: [
       {
@@ -15,54 +16,42 @@ const orderSchema = new mongoose.Schema(
           required: true,
         },
         quantity: { type: Number, required: true },
-        size: String,
-        color: String,
+        size: { type: String },
+        color: { type: String },
         price: { type: Number, required: true },
       },
     ],
     address: {
-      fullName: String,
-      email: String,
-      phone: String,
-      street: String,
-      city: String,
-      postalCode: String,
-      country: String,
+      fullName: { type: String, required: true },
+      email: { type: String, required: true },
+      phone: { type: String, required: true },
+      street: { type: String, required: true },
+      city: { type: String, required: true },
+      postalCode: { type: String, required: true },
+      country: { type: String, required: true },
     },
-    paymentMethod: {
-      type: String,
-      enum: ["paypal", "cod"],
-      required: true,
-    },
+    paymentMethod: { type: String, required: true },
     isPaid: { type: Boolean, default: false },
-    paidAt: Date,
+    paidAt: { type: Date },
+    paymentResult: {
+      id: String,
+      status: String,
+      update_time: String,
+      email_address: String,
+    },
+    coupon: {
+      code: { type: String },
+      type: { type: String },
+      value: { type: Number },
+      discount: { type: Number },
+    },
     totalAmount: { type: Number, required: true },
-
-    customOrderId: {
-      type: Number,
-      unique: true,
-      required: true,
-    },
-    status: {
-      type: String,
-      enum: [
-        "pending",
-        "processing",
-        "shipped",
-        "delivered",
-        "cancelled",
-        "refunded",
-      ],
-      default: "pending",
-    },
-    canModify: {
-      type: Boolean,
-      default: true,
-    },
-    cancelledAt: Date,
+    customOrderId: { type: String, unique: true },
+    status: { type: String, default: "pending" },
   },
-
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
 
 module.exports = mongoose.model("Order", orderSchema);

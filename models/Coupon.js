@@ -11,6 +11,8 @@ const couponSchema = new mongoose.Schema(
     usedCount: { type: Number, default: 0 },
     startDate: { type: Date, required: true },
     expiryDate: { type: Date, required: true },
+    usersUsed: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    emailsUsed: [{ type: String }],
   },
   {
     timestamps: true,

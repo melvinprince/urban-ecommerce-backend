@@ -1,9 +1,20 @@
+// backend/controllers/orderController.js
+
 const Order = require("../models/Order");
+const Coupon = require("../models/Coupon");
 const { sendResponse } = require("../middleware/responseMiddleware");
+const { redeemCoupon } = require("./couponController");
 
 exports.createOrder = async (req, res, next) => {
   try {
-    const { items, address, paymentMethod, isPaid, totalAmount } = req.body;
+    const {
+      items,
+      address,
+      paymentMethod,
+      isPaid,
+      totalAmount,
+      couponCode, // ← accept couponCode from client
+    } = req.body;
 
     if (!items || items.length === 0) {
       res.status(400);
@@ -20,6 +31,35 @@ exports.createOrder = async (req, res, next) => {
       if (!existing) isUnique = true;
     }
 
+    // Compute subtotal from items for coupon calculation
+    const subtotal = items.reduce(
+      (sum, item) => sum + item.price * item.quantity,
+      0
+    );
+
+    // Build coupon snapshot if couponCode provided
+    let couponSnapshot = null;
+    if (couponCode) {
+      const couponDoc = await Coupon.findOne({ code: couponCode });
+      if (!couponDoc) {
+        res.status(404);
+        throw new Error("Coupon not found");
+      }
+      // Compute discount
+      let discount =
+        couponDoc.type === "percentage"
+          ? (subtotal * couponDoc.value) / 100
+          : couponDoc.value;
+      discount = Math.min(discount, subtotal);
+
+      couponSnapshot = {
+        code: couponDoc.code,
+        type: couponDoc.type,
+        value: couponDoc.value,
+        discount,
+      };
+    }
+
     const order = await Order.create({
       user: req.user?._id,
       items,
@@ -29,7 +69,17 @@ exports.createOrder = async (req, res, next) => {
       paidAt: isPaid ? new Date() : null,
       totalAmount,
       customOrderId,
+      coupon: couponSnapshot, // ← persist coupon data on order
     });
+
+    // Redeem coupon (increment usage, record user/email)
+    if (couponSnapshot) {
+      await redeemCoupon({
+        code: couponCode,
+        userId: req.user?._id,
+        email: address.email,
+      });
+    }
 
     sendResponse(res, 201, "Order placed successfully", order);
   } catch (error) {
@@ -127,7 +177,6 @@ exports.getOrdersByEmail = async (req, res, next) => {
     next(error);
   }
 };
-// @desc    Get all orders (admin only)
 
 exports.cancelOrder = async (req, res, next) => {
   try {
