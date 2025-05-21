@@ -5,53 +5,103 @@ const { sendResponse } = require("../middleware/responseMiddleware"); // ⬅️ 
 // @desc    Fetch products (with optional category filter, pagination, sorting)
 // @route   GET /api/products
 // @access  Public
+
 exports.getProducts = async (req, res, next) => {
   try {
     const {
-      category: slug,
-      page = 1,
-      limit = 20,
-      sort = "createdAt:desc",
+      category, // can be single slug or comma-list
+      size,
+      color,
       priceMin,
       priceMax,
+      sort = "createdAt:desc", // newest default
+      page = 1,
+      limit = 20,
       search,
     } = req.query;
 
+    /* helper: normalise list-style query values */
+    const toList = (v) =>
+      Array.isArray(v)
+        ? v
+        : typeof v === "string"
+        ? v.split(",").filter(Boolean)
+        : [];
+
+    /* ───────── building filter ───────── */
     const filter = { isActive: true };
 
-    if (slug) {
-      const cat = await Category.findOne({ slug }).lean();
-      if (!cat) {
-        res.status(404);
-        throw new Error("Category not found");
-      }
-      filter.categories = cat._id;
+    // category slugs → ObjectIds
+    if (category) {
+      const slugs = toList(category);
+      const catDocs = await Category.find({ slug: { $in: slugs } }).select(
+        "_id"
+      );
+      const ids = catDocs.map((c) => c._id);
+      if (ids.length) filter.categories = { $in: ids };
     }
 
+    // price range
     if (priceMin || priceMax) {
       filter.price = {};
       if (priceMin) filter.price.$gte = Number(priceMin);
       if (priceMax) filter.price.$lte = Number(priceMax);
     }
 
-    if (search) {
-      filter.$text = { $search: search };
+    // size
+    if (size) {
+      const sizes = toList(size).map((s) => s.toUpperCase());
+      if (sizes.length) filter.sizes = { $in: sizes };
     }
 
-    const [sortField, sortOrder] = sort.split(":");
-    const sortOption = { [sortField]: sortOrder === "asc" ? 1 : -1 };
+    // color
+    if (color) {
+      const colors = toList(color).map(
+        (c) => c.charAt(0).toUpperCase() + c.slice(1).toLowerCase()
+      );
+      if (colors.length) filter.colors = { $in: colors };
+    }
+
+    // simple keyword search
+    if (search && search.trim()) {
+      const regex = new RegExp(search.trim(), "i");
+      filter.$or = [{ title: regex }, { description: regex }, { tags: regex }];
+    }
+
+    /* ───────── sort mapping ───────── */
+    let sortOption = { createdAt: -1 }; // newest default
+    switch (sort) {
+      case "priceAsc":
+        sortOption = { price: 1 };
+        break;
+      case "priceDesc":
+        sortOption = { price: -1 };
+        break;
+      case "popularity":
+        sortOption = { "rating.count": -1 };
+        break;
+      case "createdAt:asc":
+      case "createdAt:desc":
+        const [f, dir] = sort.split(":");
+        sortOption = { [f]: dir === "asc" ? 1 : -1 };
+        break;
+      default:
+        // keep default newest
+        break;
+    }
+
     const skip = (Number(page) - 1) * Number(limit);
 
-    const total = await Product.countDocuments(filter);
-
-    const products = await Product.find(filter)
-      .sort(sortOption)
-      .skip(skip)
-      .limit(Number(limit))
-      .select("title slug price discountPrice images shortDescription")
-      .lean();
-
-    console.log("Products fetched:", products.length);
+    /* ───────── query & response ───────── */
+    const [total, products] = await Promise.all([
+      Product.countDocuments(filter),
+      Product.find(filter)
+        .sort(sortOption)
+        .skip(skip)
+        .limit(Number(limit))
+        .select("title slug price discountPrice images shortDescription")
+        .lean(),
+    ]);
 
     sendResponse(res, 200, "Products fetched successfully", products, {
       meta: {
