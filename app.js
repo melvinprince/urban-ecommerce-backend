@@ -78,6 +78,9 @@ app.use("/api/admin", auth, isAdmin, (req, res) => {
   res.send("✅ Admin Access Granted!");
 });
 
+// Fallback for undefined routes
+app.use("*", (req, res) => res.status(404).json({ message: "Not Found" }));
+
 // Error Handler (must be last)
 app.use(errorHandler);
 

@@ -103,7 +103,10 @@ exports.getProducts = async (req, res, next) => {
         .sort(sortOption)
         .skip(skip)
         .limit(Number(limit))
-        .select("title slug price discountPrice images shortDescription")
+        .select(
+          "title slug price discountPrice images shortDescription sizes colors tags"
+        )
+        .populate("categories", "name slug")
         .lean(),
     ]);
 
@@ -114,7 +117,8 @@ exports.getProducts = async (req, res, next) => {
           )
         : rawProducts;
 
-    sendResponse(res, 200, "Products fetched successfully", products, {
+    sendResponse(res, 200, "Products fetched successfully", {
+      products,
       meta: {
         total,
         page: Number(page),

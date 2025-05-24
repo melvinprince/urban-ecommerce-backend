@@ -1,14 +1,15 @@
 // backend/controllers/couponController.js
-
 const mongoose = require("mongoose");
 const Coupon = require("../models/Coupon");
+const Order = require("../models/Order");
+const { BadRequestError, NotFoundError } = require("../utils/errors");
 const { sendResponse } = require("../middleware/responseMiddleware");
-const { NotFoundError, BadRequestError } = require("../utils/errors");
 
 // POST /api/coupons/apply
 exports.applyCoupon = async (req, res, next) => {
   try {
     const { code, subtotal, email } = req.body;
+
     const userId = req.user?.id;
     const now = new Date();
 
@@ -16,7 +17,8 @@ exports.applyCoupon = async (req, res, next) => {
       return next(new BadRequestError("Code and subtotal are required"));
     }
 
-    const coupon = await Coupon.findOne({ code });
+    const coupon = await Coupon.findOne({ code: code.toUpperCase() });
+
     if (!coupon) {
       return next(new NotFoundError("Invalid coupon code."));
     }
@@ -39,8 +41,8 @@ exports.applyCoupon = async (req, res, next) => {
       return next(new BadRequestError("You have already used this coupon."));
     }
 
+    // Always check if email has used it (for guest or any email)
     if (
-      !userId &&
       email &&
       coupon.emailsUsed
         .map((e) => e.toLowerCase())
@@ -66,9 +68,12 @@ exports.applyCoupon = async (req, res, next) => {
     discount = Math.min(discount, subtotal);
 
     sendResponse(res, 200, "Coupon applied", {
-      code: coupon.code,
-      type: coupon.type,
-      value: coupon.value,
+      coupon: {
+        code: coupon.code,
+        type: coupon.type,
+        value: coupon.value,
+        minSubtotal: coupon.minSubtotal,
+      },
       discount,
     });
   } catch (error) {
@@ -78,6 +83,7 @@ exports.applyCoupon = async (req, res, next) => {
 
 // Called within your order-placement logic
 exports.redeemCoupon = async ({ code, userId, email }) => {
+  // Atomically bump usage and record user/email
   await Coupon.findOneAndUpdate(
     { code },
     {

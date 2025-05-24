@@ -37,10 +37,10 @@ const orderRules = () => [
     .withMessage("Invalid phone number")
     .escape(),
 
-  body("address.address")
+  body("address.street")
     .trim()
     .notEmpty()
-    .withMessage("Address is required")
+    .withMessage("Street address is required")
     .escape(),
 
   body("paymentMethod")

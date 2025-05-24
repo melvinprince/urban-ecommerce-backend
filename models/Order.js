@@ -47,6 +47,7 @@ const orderSchema = new mongoose.Schema(
     },
     totalAmount: { type: Number, required: true },
     customOrderId: { type: String, unique: true },
+    canModify: { type: Boolean, default: true },
     status: { type: String, default: "pending" },
   },
   {

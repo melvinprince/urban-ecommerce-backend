@@ -31,15 +31,15 @@ exports.addUserAddress = async (req, res, next) => {
 exports.updateUserAddress = async (req, res, next) => {
   try {
     const index = parseInt(req.params.index);
-    const { address } = req.body;
 
     if (isNaN(index) || index < 0 || index >= req.user.addresses.length) {
       return next(new BadRequestError("Invalid address index"));
     }
 
-    req.user.addresses[index] = { ...req.user.addresses[index], ...address };
-    await req.user.save();
+    // Apply updated fields directly from req.body
+    req.user.addresses[index] = { ...req.user.addresses[index], ...req.body };
 
+    await req.user.save();
     sendResponse(res, 200, "Address updated", req.user.addresses);
   } catch (err) {
     next(err);

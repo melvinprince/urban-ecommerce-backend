@@ -36,7 +36,4 @@ cartSchema.virtual("subtotal").get(function () {
   );
 });
 
-// Index for faster user lookups
-cartSchema.index({ user: 1 }, { unique: true });
-
 module.exports = mongoose.model("Cart", cartSchema);

@@ -26,7 +26,7 @@ const addressRules = () => [
     .withMessage("Invalid phone number")
     .escape(),
 
-  body("address").trim().notEmpty().withMessage("Address is required").escape(),
+  body("street").trim().notEmpty().withMessage("Address is required").escape(),
 
   body("isDefault")
     .optional()
