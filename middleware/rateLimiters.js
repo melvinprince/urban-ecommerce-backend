@@ -5,7 +5,7 @@ const rateLimit = require("express-rate-limit");
 // ✅ Auth limiter (login, register)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 min
-  max: 10,
+  max: 100,
   message: {
     message:
       "Too many requests from this IP, please try again after 15 minutes",
@@ -17,7 +17,7 @@ const authLimiter = rateLimit({
 // ✅ Order limiter (create, cancel, edit)
 const orderLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 min
-  max: 10,
+  max: 100,
   message: {
     message: "Too many order requests. Please slow down.",
   },
@@ -28,7 +28,7 @@ const orderLimiter = rateLimit({
 // ✅ PayPal limiter (create/capture)
 const paymentLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 3,
+  max: 30,
   message: {
     message: "Too many payment attempts. Please try again shortly.",
   },
@@ -39,7 +39,7 @@ const paymentLimiter = rateLimit({
 // ✅ Review limiter
 const reviewLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 5,
+  max: 50,
   message: {
     message: "Too many review submissions. Please wait a moment.",
   },
@@ -50,7 +50,7 @@ const reviewLimiter = rateLimit({
 // ✅ Ticket limiter (create/reply)
 const ticketLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 5,
+  max: 50,
   message: {
     message: "Too many support messages. Please slow down.",
   },
