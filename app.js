@@ -42,8 +42,8 @@ console.log("✅ FRONT_END_URL loaded:", process.env.FRONT_END_URL);
 
 app.use(
   cors({
-    origin: process.env.FRONT_END_URL, // Allow requests from the client
-    credentials: true, // 🔥 allow cookies
+    origin: process.env.FRONT_END_URL,
+    credentials: true,
   })
 );
 app.use(morgan("dev"));
