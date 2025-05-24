@@ -28,7 +28,6 @@ const seed = async () => {
   try {
     await connectDB();
 
-    console.log("⏳ Clearing existing data...");
 
     await Category.deleteMany();
     await Product.deleteMany();

@@ -3,7 +3,6 @@ const checkoutNodeJssdk = require("@paypal/checkout-server-sdk");
 
 exports.createPaypalOrder = async (req, res, next) => {
   try {
-    console.log("🔁 [PayPal] Received create order request", req.body);
     const request = new checkoutNodeJssdk.orders.OrdersCreateRequest();
     request.requestBody({
       intent: "CAPTURE",

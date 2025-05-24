@@ -91,8 +91,6 @@ exports.getMyTickets = async (req, res, next) => {
       throw new Error("Not authorized");
     }
 
-    console.log("✅ Fetching tickets for user:", req.user._id);
-
     const tickets = await Ticket.find({ user: req.user._id })
       .sort({ createdAt: -1 })
       .select("-__v");

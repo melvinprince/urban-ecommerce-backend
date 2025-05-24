@@ -11,6 +11,10 @@ const {
 } = require("../controllers/ticketController");
 
 const auth = require("../middleware/auth");
+const { ticketRules } = require("../validators/ticketValidationRules");
+const {
+  handleValidationErrors,
+} = require("../middleware/validationResultHandler");
 
 // === Multer Setup ===
 const storage = multer.diskStorage({
@@ -45,7 +49,14 @@ const upload = multer({
 // === Routes ===
 
 // 📬 Submit new ticket
-router.post("/", auth, upload.array("files", 3), createTicket);
+router.post(
+  "/",
+  auth,
+  upload.array("files", 3),
+  ticketRules(),
+  handleValidationErrors,
+  createTicket
+);
 
 // 📄 List all tickets for logged-in user
 router.get("/my-tickets", auth, getMyTickets);

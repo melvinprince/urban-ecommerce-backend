@@ -11,11 +11,16 @@ exports.getUserAddresses = async (req, res, next) => {
 
 exports.addUserAddress = async (req, res, next) => {
   try {
-    const { address } = req.body;
-    req.user.addresses.push(address);
+    if (!req.user || !req.user.addresses) {
+      console.warn("❗ User or addresses array not found");
+      return res.status(400).json({ message: "User not found or invalid" });
+    }
+
+    req.user.addresses.push(req.body);
     await req.user.save();
     sendResponse(res, 201, "Address added", req.user.addresses);
   } catch (err) {
+    console.error("❌ Error in addUserAddress", err);
     next(err);
   }
 };

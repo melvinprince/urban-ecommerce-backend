@@ -4,9 +4,17 @@ const {
   createReview,
   getProductReviews,
 } = require("../controllers/reviewController");
-const auth = require("../middleware/auth"); // 👈 using your middleware
+const auth = require("../middleware/auth");
 
-router.post("/", auth, createReview); // ✅ requires login
-router.get("/:productId", getProductReviews); // ✅ public
+const { reviewRules } = require("../validators/reviewValidationRules");
+const {
+  handleValidationErrors,
+} = require("../middleware/validationResultHandler");
+
+// Submit a review (logged-in users only)
+router.post("/", auth, reviewRules(), handleValidationErrors, createReview);
+
+// Get all reviews for a product (public)
+router.get("/:productId", getProductReviews);
 
 module.exports = router;

@@ -9,11 +9,29 @@ const {
   deleteUserAddress,
 } = require("../controllers/addressController");
 
+const { addressRules } = require("../validators/addressValidationRules");
+const {
+  handleValidationErrors,
+} = require("../middleware/validationResultHandler");
+
 router.use(auth);
 
 router.get("/", getUserAddresses);
-router.post("/", addUserAddress);
-router.put("/:index", updateUserAddress);
+
+router.post(
+  "/",
+  addressRules(), // 🧩 validate
+  handleValidationErrors, // 🧩 handle validation result
+  addUserAddress // ✅ only runs if validated
+);
+
+router.put(
+  "/:index",
+  addressRules(),
+  handleValidationErrors,
+  updateUserAddress
+);
+
 router.delete("/:index", deleteUserAddress);
 
 module.exports = router;

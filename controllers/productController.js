@@ -181,7 +181,6 @@ exports.searchProducts = async (req, res, next) => {
 
       filter.$or = [{ title: regex }, { description: regex }, { tags: regex }];
     } else {
-      console.log("⚠️ No search query provided or invalid.");
     }
 
     // CATEGORY: Resolve slugs to IDs

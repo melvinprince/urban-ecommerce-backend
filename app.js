@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
+const xss = require("xss-clean");
 const morgan = require("morgan");
 const cookieParser = require("cookie-parser");
 const path = require("path");
@@ -30,6 +31,7 @@ app.use(helmet());
 app.use(cors());
 app.use(morgan("dev"));
 app.use(express.json());
+// app.use(xss());
 app.use(cookieParser());
 
 // Serve static uploads (for ticket file access)
@@ -53,7 +55,7 @@ app.use("/api/coupons", couponRoutes);
 
 // Protected Routes
 app.use("/api/cart", auth, cartRoutes);
-app.use("/api/user/addresses", auth, addressRoutes);
+app.use("/api/user/addresses", addressRoutes);
 
 // Error Handler (must be last)
 app.use(errorHandler);

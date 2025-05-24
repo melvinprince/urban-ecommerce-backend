@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+
 const {
   createOrder,
   getOrderById,
@@ -14,27 +15,39 @@ const {
 const auth = require("../middleware/auth");
 const authOptional = require("../middleware/authOptional");
 
-//Allow guest checkout
-router.post("/", authOptional, createOrder);
+const { orderRules } = require("../validators/orderValidationRules");
+const {
+  handleValidationErrors,
+} = require("../middleware/validationResultHandler");
 
-//Requires login to view personal order history
+// Allow guest + logged-in user checkout
+router.post(
+  "/",
+  authOptional,
+  orderRules(),
+  handleValidationErrors,
+  createOrder
+);
+
+// Requires login to view personal order history
 router.get("/my-orders", auth, getMyOrders);
 
-//Public route for order confirmation page
+// Public route for order confirmation page
 router.get("/:id", authOptional, getOrderById);
 
-//Public route for order confirmation page with custom ID
+// Public route for order confirmation page with custom ID
 router.get("/by-custom/:customId", getOrderByCustomId);
 
-//Public route for order confirmation page with email
+// Public route for order confirmation page with email
 router.get("/email/:email", getOrdersByEmail);
 
-//Requires login to cancel order
+// Requires login to cancel order
 router.patch("/:customOrderId/cancel", auth, cancelOrder);
+
 // Public route for guest cancellation
 router.patch("/cancel-guest", cancelOrderAsGuest);
 
-//Edit order
+// Edit order
 router.patch("/edit/:customId", authOptional, editOrder);
 
 module.exports = router;
