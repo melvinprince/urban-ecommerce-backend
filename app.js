@@ -1,7 +1,6 @@
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
-const xss = require("xss-clean");
 const morgan = require("morgan");
 const cookieParser = require("cookie-parser");
 const path = require("path");
@@ -28,10 +27,14 @@ const app = express();
 
 // Security & Logging Middleware
 app.use(helmet());
-app.use(cors());
+app.use(
+  cors({
+    origin: process.env.CLIENT_URL || "http://localhost:3000",
+    credentials: true, // 🔥 allow cookies
+  })
+);
 app.use(morgan("dev"));
 app.use(express.json());
-// app.use(xss());
 app.use(cookieParser());
 
 // Serve static uploads (for ticket file access)

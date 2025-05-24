@@ -1,5 +1,3 @@
-// backend/controllers/orderController.js
-
 const Order = require("../models/Order");
 const Coupon = require("../models/Coupon");
 const { sendResponse } = require("../middleware/responseMiddleware");
@@ -7,37 +5,27 @@ const { redeemCoupon } = require("./couponController");
 
 exports.createOrder = async (req, res, next) => {
   try {
-    const {
-      items,
-      address,
-      paymentMethod,
-      isPaid,
-      totalAmount,
-      couponCode, // ← accept couponCode from client
-    } = req.body;
+    const { items, address, paymentMethod, isPaid, totalAmount, couponCode } =
+      req.body;
 
     if (!items || items.length === 0) {
       res.status(400);
       throw new Error("No items to order");
     }
 
-    // Generate unique random 6-digit order ID
     let customOrderId;
     let isUnique = false;
-
     while (!isUnique) {
-      customOrderId = Math.floor(100000 + Math.random() * 900000); // 6-digit number
+      customOrderId = Math.floor(100000 + Math.random() * 900000);
       const existing = await Order.findOne({ customOrderId });
       if (!existing) isUnique = true;
     }
 
-    // Compute subtotal from items for coupon calculation
     const subtotal = items.reduce(
       (sum, item) => sum + item.price * item.quantity,
       0
     );
 
-    // Build coupon snapshot if couponCode provided
     let couponSnapshot = null;
     if (couponCode) {
       const couponDoc = await Coupon.findOne({ code: couponCode });
@@ -45,7 +33,6 @@ exports.createOrder = async (req, res, next) => {
         res.status(404);
         throw new Error("Coupon not found");
       }
-      // Compute discount
       let discount =
         couponDoc.type === "percentage"
           ? (subtotal * couponDoc.value) / 100
@@ -69,10 +56,9 @@ exports.createOrder = async (req, res, next) => {
       paidAt: isPaid ? new Date() : null,
       totalAmount,
       customOrderId,
-      coupon: couponSnapshot, // ← persist coupon data on order
+      coupon: couponSnapshot,
     });
 
-    // Redeem coupon (increment usage, record user/email)
     if (couponSnapshot) {
       await redeemCoupon({
         code: couponCode,
@@ -87,9 +73,6 @@ exports.createOrder = async (req, res, next) => {
   }
 };
 
-// @desc    Get a specific order by ID (for logged-in users only)
-// @route   GET /api/orders/:id
-// @access  Protected
 exports.getOrderById = async (req, res, next) => {
   try {
     const order = await Order.findById(req.params.id)
@@ -101,7 +84,6 @@ exports.getOrderById = async (req, res, next) => {
       throw new Error("Order not found");
     }
 
-    // Only allow the user who placed the order to view it
     if (
       order.user &&
       req.user &&
@@ -117,9 +99,6 @@ exports.getOrderById = async (req, res, next) => {
   }
 };
 
-// @desc    Get all orders of logged-in user
-// @route   GET /api/orders/my-orders
-// @access  Protected
 exports.getMyOrders = async (req, res, next) => {
   try {
     const orders = await Order.find({ user: req.user._id })
@@ -135,7 +114,6 @@ exports.getMyOrders = async (req, res, next) => {
 exports.getOrderByCustomId = async (req, res, next) => {
   try {
     const customOrderId = parseInt(req.params.customId);
-
     const order = await Order.findOne({ customOrderId })
       .populate("items.product", "title price images slug")
       .populate("user", "name email");
@@ -151,9 +129,6 @@ exports.getOrderByCustomId = async (req, res, next) => {
   }
 };
 
-// @desc    Get all orders by guest email (no auth)
-// @route   GET /api/orders/email/:email
-// @access  Public
 exports.getOrdersByEmail = async (req, res, next) => {
   try {
     const { email } = req.params;
@@ -181,7 +156,6 @@ exports.getOrdersByEmail = async (req, res, next) => {
 exports.cancelOrder = async (req, res, next) => {
   try {
     const { customOrderId } = req.params;
-
     const order = await Order.findOne({ customOrderId });
 
     if (!order) {
@@ -189,7 +163,6 @@ exports.cancelOrder = async (req, res, next) => {
       throw new Error("Order not found");
     }
 
-    // Auth check — only order owner can cancel
     if (
       order.user &&
       req.user &&
@@ -204,7 +177,6 @@ exports.cancelOrder = async (req, res, next) => {
       throw new Error("Order can no longer be cancelled");
     }
 
-    // Update order status
     order.status = "cancelled";
     order.canModify = false;
     order.cancelledAt = new Date();
@@ -232,7 +204,6 @@ exports.cancelOrderAsGuest = async (req, res, next) => {
       throw new Error("Order not found");
     }
 
-    // Check if guest email matches order's address
     if (order.address.email !== email) {
       res.status(403);
       throw new Error("Email does not match order record");
@@ -246,8 +217,8 @@ exports.cancelOrderAsGuest = async (req, res, next) => {
     order.status = "cancelled";
     order.canModify = false;
     order.cancelledAt = new Date();
-
     await order.save();
+
     sendResponse(res, 200, "Order cancelled successfully", order);
   } catch (error) {
     next(error);
@@ -257,7 +228,7 @@ exports.cancelOrderAsGuest = async (req, res, next) => {
 exports.editOrder = async (req, res, next) => {
   try {
     const { customId } = req.params;
-    const { address, email } = req.body; // 👈 Accept email separately
+    const { address, email } = req.body;
 
     const order = await Order.findOne({ customOrderId: customId });
 
@@ -266,29 +237,23 @@ exports.editOrder = async (req, res, next) => {
       throw new Error("Order not found");
     }
 
-    // Check if order is editable
     if (!order.canModify || order.status === "shipped") {
       res.status(400);
       throw new Error("Order can no longer be modified");
     }
 
-    const isLoggedIn = !!req.user;
-
-    if (isLoggedIn) {
-      // Authenticated user: must be the one who placed the order (if linked)
+    if (req.user) {
       if (order.user && order.user.toString() !== req.user._id.toString()) {
         res.status(403);
         throw new Error("Not authorized to edit this order");
       }
     } else {
-      // Guest: email must match the original email stored in order.address
       if (!email || email !== order.address?.email) {
         res.status(403);
         throw new Error("Email verification failed");
       }
     }
 
-    // ✅ Update allowed fields only
     if (address) {
       order.address.fullName = address.fullName || order.address.fullName;
       order.address.email = address.email || order.address.email;

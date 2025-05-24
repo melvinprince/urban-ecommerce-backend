@@ -3,6 +3,23 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { sendResponse } = require("../middleware/responseMiddleware");
 
+const createTokenAndSetCookie = (user, res) => {
+  const token = jwt.sign(
+    { id: user._id, name: user.name, email: user.email, role: user.role },
+    process.env.JWT_SECRET,
+    { expiresIn: process.env.JWT_EXPIRATION }
+  );
+
+  const cookieOptions = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  };
+
+  res.cookie("token", token, cookieOptions);
+};
+
 exports.registerUser = async (req, res, next) => {
   const { name, email, password, repeatPassword } = req.body;
 
@@ -32,13 +49,8 @@ exports.registerUser = async (req, res, next) => {
       password: hashedPassword,
     });
 
-    const token = jwt.sign(
-      { id: user._id, name: user.name, email: user.email, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRATION }
-    );
+    createTokenAndSetCookie(user, res);
 
-    // ✅ Use sendResponse helper
     sendResponse(res, 201, "User registered successfully", {
       user: {
         id: user._id,
@@ -46,7 +58,6 @@ exports.registerUser = async (req, res, next) => {
         email: user.email,
         role: user.role,
       },
-      token,
     });
   } catch (error) {
     next(error);
@@ -76,17 +87,50 @@ exports.loginUser = async (req, res, next) => {
       throw new Error("Invalid email or password");
     }
 
-    const token = jwt.sign(
-      { id: user._id, name: user.name, email: user.email, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRATION }
-    );
+    createTokenAndSetCookie(user, res);
 
-    // ✅ Use sendResponse helper
     sendResponse(res, 200, "Login successful", {
-      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
     });
   } catch (error) {
     next(error);
+  }
+};
+
+exports.getMe = async (req, res, next) => {
+  try {
+    if (!req.user) {
+      return res
+        .status(401)
+        .json({ success: false, message: "Not authenticated" });
+    }
+
+    sendResponse(res, 200, "User details fetched", {
+      id: req.user._id,
+      name: req.user.name,
+      email: req.user.email,
+      role: req.user.role,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.logoutUser = async (req, res, next) => {
+  try {
+    res.clearCookie("token", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+    });
+
+    sendResponse(res, 200, "Logged out successfully");
+  } catch (err) {
+    next(err);
   }
 };
