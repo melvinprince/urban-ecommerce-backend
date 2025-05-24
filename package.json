@@ -20,6 +20,8 @@
     "express-async-errors": "^3.1.1",
     "express-rate-limit": "^7.5.0",
     "express-validator": "^7.2.1",
+    "file-type": "^21.0.0",
+    "file-type-checker": "^1.1.4",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.14.3",

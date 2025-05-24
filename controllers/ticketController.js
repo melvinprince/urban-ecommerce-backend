@@ -1,16 +1,33 @@
 const Ticket = require("../models/Ticket");
 const { sendResponse } = require("../middleware/responseMiddleware");
+const fs = require("fs/promises");
 const path = require("path");
 
-// Utility to detect file type
-const detectFileType = (mime) => {
-  if (mime.startsWith("image/")) return "image";
-  if (mime === "application/pdf") return "pdf";
-  if (mime === "video/mp4") return "video";
-  return "unknown";
+// Manual magic-number validation function
+const detectMagicType = (buffer) => {
+  const hex = buffer.slice(0, 4).toString("hex").toLowerCase();
+  if (hex.startsWith("ffd8ff") || hex.startsWith("89504e47")) return "image";
+  if (hex.startsWith("25504446")) return "pdf";
+  if (hex.startsWith("00000018") || buffer.slice(4, 12).toString() === "ftyp")
+    return "video";
+  return null;
 };
 
-// 🆕 Create ticket
+// Directory to save ticket uploads
+const UPLOAD_DIR = path.join(__dirname, "..", "uploads", "tickets");
+
+// Helper: save a buffer to disk and return its filename
+async function saveBufferToDisk(buffer, originalName) {
+  const ext = path.extname(originalName);
+  const filename = `${Date.now()}-${Math.random()
+    .toString(36)
+    .substr(2)}${ext}`;
+  const savePath = path.join(UPLOAD_DIR, filename);
+  await fs.writeFile(savePath, buffer);
+  return filename;
+}
+
+// Create a ticket
 exports.createTicket = async (req, res, next) => {
   try {
     const { subject, orderRef, message } = req.body;
@@ -20,10 +37,26 @@ exports.createTicket = async (req, res, next) => {
       throw new Error("Subject and message are required");
     }
 
-    const attachments = (req.files || []).map((file) => ({
-      url: `/uploads/tickets/${file.filename}`,
-      type: detectFileType(file.mimetype),
-    }));
+    // Validate magic numbers
+    for (const file of req.files || []) {
+      const fileType = detectMagicType(file.buffer);
+      if (!fileType) {
+        res.status(400);
+        throw new Error(
+          `Unsupported or invalid file type: ${file.originalname}`
+        );
+      }
+    }
+
+    // Save attachments after validation
+    const attachments = [];
+    for (const file of req.files || []) {
+      const filename = await saveBufferToDisk(file.buffer, file.originalname);
+      attachments.push({
+        url: `/uploads/tickets/${filename}`,
+        type: detectMagicType(file.buffer),
+      });
+    }
 
     const ticket = await Ticket.create({
       user: req.user._id,
@@ -45,7 +78,7 @@ exports.createTicket = async (req, res, next) => {
   }
 };
 
-// 🆕 Admin or user reply
+// Reply to a ticket
 exports.replyToTicket = async (req, res, next) => {
   try {
     const ticket = await Ticket.findById(req.params.id);
@@ -60,13 +93,28 @@ exports.replyToTicket = async (req, res, next) => {
       throw new Error("Message cannot be empty");
     }
 
-    const attachments = (req.files || []).map((file) => ({
-      url: `/uploads/tickets/${file.filename}`,
-      type: detectFileType(file.mimetype),
-    }));
+    // Validate magic numbers
+    for (const file of req.files || []) {
+      const fileType = detectMagicType(file.buffer);
+      if (!fileType) {
+        res.status(400);
+        throw new Error(
+          `Unsupported or invalid file type: ${file.originalname}`
+        );
+      }
+    }
+
+    // Save attachments after validation
+    const attachments = [];
+    for (const file of req.files || []) {
+      const filename = await saveBufferToDisk(file.buffer, file.originalname);
+      attachments.push({
+        url: `/uploads/tickets/${filename}`,
+        type: detectMagicType(file.buffer),
+      });
+    }
 
     const isAdmin = req.user.role === "adm";
-
     ticket.messages.push({
       sender: isAdmin ? "admin" : "user",
       text: message,
@@ -82,27 +130,19 @@ exports.replyToTicket = async (req, res, next) => {
   }
 };
 
-// Optional: get user's own tickets
+// Get all user's tickets
 exports.getMyTickets = async (req, res, next) => {
   try {
-    if (!req.user || !req.user._id) {
-      console.error("❌ User not found in request");
-      res.status(401);
-      throw new Error("Not authorized");
-    }
-
     const tickets = await Ticket.find({ user: req.user._id })
       .sort({ createdAt: -1 })
       .select("-__v");
-
     sendResponse(res, 200, "Tickets fetched", tickets);
   } catch (err) {
-    console.error("🔥 getMyTickets error:", err);
     next(err);
   }
 };
 
-// Optional: get full details of a ticket
+// Get ticket by ID
 exports.getTicketById = async (req, res, next) => {
   try {
     const ticket = await Ticket.findById(req.params.id).populate(
@@ -113,8 +153,6 @@ exports.getTicketById = async (req, res, next) => {
       res.status(404);
       throw new Error("Ticket not found");
     }
-
-    // Only allow user who owns the ticket (or admin)
     if (
       req.user.role !== "adm" &&
       ticket.user._id.toString() !== req.user._id.toString()
@@ -122,7 +160,6 @@ exports.getTicketById = async (req, res, next) => {
       res.status(403);
       throw new Error("Not authorized to view this ticket");
     }
-
     sendResponse(res, 200, "Ticket fetched", ticket);
   } catch (err) {
     next(err);
