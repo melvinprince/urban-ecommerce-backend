@@ -1,3 +1,6 @@
+// app.js
+
+require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
@@ -8,7 +11,15 @@ require("express-async-errors");
 
 // Middleware
 const auth = require("./middleware/auth");
+const isAdmin = require("./middleware/role");
 const { errorHandler } = require("./middleware/errorMiddleware");
+const {
+  authLimiter,
+  orderLimiter,
+  paymentLimiter,
+  reviewLimiter,
+  ticketLimiter,
+} = require("./middleware/rateLimiters");
 
 // Routes
 const authRoutes = require("./routes/authRoute");
@@ -27,9 +38,11 @@ const app = express();
 
 // Security & Logging Middleware
 app.use(helmet());
+console.log("✅ FRONT_END_URL loaded:", process.env.FRONT_END_URL);
+
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || "http://localhost:3000",
+    origin: process.env.FRONT_END_URL, // Allow requests from the client
     credentials: true, // 🔥 allow cookies
   })
 );
@@ -45,20 +58,25 @@ app.get("/", (req, res) => {
   res.send("✅ API is Running...");
 });
 
-// Public Routes
-app.use("/api/auth", authRoutes);
+// Public Routes (with selective rate limiting)
+app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/wishlist", wishlistRoutes);
-app.use("/api/orders", orderRoutes);
-app.use("/api/paypal", paypalRoutes);
-app.use("/api/tickets", ticketRoutes);
-app.use("/api/reviews", reviewRoutes);
+app.use("/api/orders", orderLimiter, orderRoutes);
+app.use("/api/paypal", paymentLimiter, paypalRoutes);
+app.use("/api/tickets", ticketLimiter, ticketRoutes);
+app.use("/api/reviews", reviewLimiter, reviewRoutes);
 app.use("/api/coupons", couponRoutes);
 
-// Protected Routes
+// Protected Routes (auth required)
 app.use("/api/cart", auth, cartRoutes);
-app.use("/api/user/addresses", addressRoutes);
+app.use("/api/user/addresses", auth, addressRoutes);
+
+// Admin Route Prefix (auth + admin required)
+app.use("/api/admin", auth, isAdmin, (req, res) => {
+  res.send("✅ Admin Access Granted!");
+});
 
 // Error Handler (must be last)
 app.use(errorHandler);

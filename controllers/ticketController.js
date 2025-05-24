@@ -1,9 +1,16 @@
+// controllers/ticketController.js
+
 const Ticket = require("../models/Ticket");
 const { sendResponse } = require("../middleware/responseMiddleware");
+const {
+  BadRequestError,
+  ForbiddenError,
+  NotFoundError,
+} = require("../utils/errors");
 const fs = require("fs/promises");
 const path = require("path");
 
-// Manual magic-number validation function
+// Magic number validator
 const detectMagicType = (buffer) => {
   const hex = buffer.slice(0, 4).toString("hex").toLowerCase();
   if (hex.startsWith("ffd8ff") || hex.startsWith("89504e47")) return "image";
@@ -13,10 +20,10 @@ const detectMagicType = (buffer) => {
   return null;
 };
 
-// Directory to save ticket uploads
+// Upload directory
 const UPLOAD_DIR = path.join(__dirname, "..", "uploads", "tickets");
 
-// Helper: save a buffer to disk and return its filename
+// Save buffer to disk helper
 async function saveBufferToDisk(buffer, originalName) {
   const ext = path.extname(originalName);
   const filename = `${Date.now()}-${Math.random()
@@ -27,28 +34,26 @@ async function saveBufferToDisk(buffer, originalName) {
   return filename;
 }
 
-// Create a ticket
+// Create Ticket
 exports.createTicket = async (req, res, next) => {
   try {
     const { subject, orderRef, message } = req.body;
 
     if (!subject || !message) {
-      res.status(400);
-      throw new Error("Subject and message are required");
+      return next(new BadRequestError("Subject and message are required"));
     }
 
-    // Validate magic numbers
     for (const file of req.files || []) {
       const fileType = detectMagicType(file.buffer);
       if (!fileType) {
-        res.status(400);
-        throw new Error(
-          `Unsupported or invalid file type: ${file.originalname}`
+        return next(
+          new BadRequestError(
+            `Unsupported or invalid file type: ${file.originalname}`
+          )
         );
       }
     }
 
-    // Save attachments after validation
     const attachments = [];
     for (const file of req.files || []) {
       const filename = await saveBufferToDisk(file.buffer, file.originalname);
@@ -78,33 +83,30 @@ exports.createTicket = async (req, res, next) => {
   }
 };
 
-// Reply to a ticket
+// Reply to Ticket
 exports.replyToTicket = async (req, res, next) => {
   try {
     const ticket = await Ticket.findById(req.params.id);
     if (!ticket) {
-      res.status(404);
-      throw new Error("Ticket not found");
+      return next(new NotFoundError("Ticket not found"));
     }
 
     const { message } = req.body;
     if (!message || !message.trim()) {
-      res.status(400);
-      throw new Error("Message cannot be empty");
+      return next(new BadRequestError("Message cannot be empty"));
     }
 
-    // Validate magic numbers
     for (const file of req.files || []) {
       const fileType = detectMagicType(file.buffer);
       if (!fileType) {
-        res.status(400);
-        throw new Error(
-          `Unsupported or invalid file type: ${file.originalname}`
+        return next(
+          new BadRequestError(
+            `Unsupported or invalid file type: ${file.originalname}`
+          )
         );
       }
     }
 
-    // Save attachments after validation
     const attachments = [];
     for (const file of req.files || []) {
       const filename = await saveBufferToDisk(file.buffer, file.originalname);
@@ -122,6 +124,7 @@ exports.replyToTicket = async (req, res, next) => {
     });
 
     if (isAdmin) ticket.status = "replied";
+
     await ticket.save();
 
     sendResponse(res, 200, "Reply added", ticket);
@@ -130,12 +133,13 @@ exports.replyToTicket = async (req, res, next) => {
   }
 };
 
-// Get all user's tickets
+// Get user's tickets
 exports.getMyTickets = async (req, res, next) => {
   try {
     const tickets = await Ticket.find({ user: req.user._id })
       .sort({ createdAt: -1 })
       .select("-__v");
+
     sendResponse(res, 200, "Tickets fetched", tickets);
   } catch (err) {
     next(err);
@@ -150,16 +154,16 @@ exports.getTicketById = async (req, res, next) => {
       "name email"
     );
     if (!ticket) {
-      res.status(404);
-      throw new Error("Ticket not found");
+      return next(new NotFoundError("Ticket not found"));
     }
+
     if (
       req.user.role !== "adm" &&
       ticket.user._id.toString() !== req.user._id.toString()
     ) {
-      res.status(403);
-      throw new Error("Not authorized to view this ticket");
+      return next(new ForbiddenError("Not authorized to view this ticket"));
     }
+
     sendResponse(res, 200, "Ticket fetched", ticket);
   } catch (err) {
     next(err);

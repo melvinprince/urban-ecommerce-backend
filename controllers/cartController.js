@@ -1,4 +1,7 @@
+// controllers/cartController.js
+
 const { sendResponse } = require("../middleware/responseMiddleware");
+const { BadRequestError, NotFoundError } = require("../utils/errors");
 const Cart = require("../models/Cart");
 
 // GET /api/cart
@@ -36,8 +39,7 @@ exports.addOrUpdateCart = async (req, res, next) => {
     const { productId, quantity = 1, size, color } = req.body;
 
     if (!productId) {
-      res.status(400);
-      throw new Error("Product ID is required");
+      return next(new BadRequestError("Product ID is required"));
     }
 
     let cart = await Cart.findOne({ user: userId });
@@ -83,11 +85,16 @@ exports.removeCartItem = async (req, res, next) => {
 
     let cart = await Cart.findOne({ user: userId });
     if (!cart) {
-      res.status(404);
-      throw new Error("Cart not found");
+      return next(new NotFoundError("Cart not found"));
     }
 
+    const initialCount = cart.items.length;
     cart.items = cart.items.filter((i) => i._id.toString() !== itemId);
+
+    if (cart.items.length === initialCount) {
+      return next(new NotFoundError("Cart item not found"));
+    }
+
     await cart.save();
     await cart.populate({
       path: "items.product",
@@ -113,14 +120,12 @@ exports.updateCartItem = async (req, res, next) => {
 
     let cart = await Cart.findOne({ user: userId });
     if (!cart) {
-      res.status(404);
-      throw new Error("Cart not found");
+      return next(new NotFoundError("Cart not found"));
     }
 
     const item = cart.items.id(itemId);
     if (!item) {
-      res.status(404);
-      throw new Error("Cart item not found");
+      return next(new NotFoundError("Cart item not found"));
     }
 
     if (quantity != null) item.quantity = quantity;
@@ -151,16 +156,12 @@ exports.clearCart = async (req, res, next) => {
 
     let cart = await Cart.findOne({ user: userId });
     if (!cart) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Cart not found" });
+      return next(new NotFoundError("Cart not found"));
     }
 
-    // Clear items and save
     cart.items = [];
     await cart.save();
 
-    // ✅ Re-fetch the cart so virtuals recalculate correctly
     cart = await Cart.findOne({ user: userId }).populate({
       path: "items.product",
       select: "title slug images price discountPrice sizes colors stock",

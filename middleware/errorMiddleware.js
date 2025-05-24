@@ -1,10 +1,15 @@
+// middleware/errorMiddleware.js
+
+const { CustomError } = require("../utils/errors");
+
 const errorHandler = (err, req, res, next) => {
-  const statusCode =
-    res.statusCode && res.statusCode !== 200 ? res.statusCode : 500;
+  const statusCode = err instanceof CustomError ? err.statusCode : 500;
 
   res.status(statusCode).json({
+    success: false,
     message: err.message || "Server Error",
-    stack: process.env.NODE_ENV === "production" ? null : err.stack,
+    ...(err.details && { details: err.details }), // Attach extra info like validation errors
+    ...(process.env.NODE_ENV !== "production" && { stack: err.stack }),
   });
 };
 

@@ -1,11 +1,24 @@
+// controllers/reviewController.js
+
 const Review = require("../models/Review");
 const Order = require("../models/Order");
 const { sendResponse } = require("../middleware/responseMiddleware");
+const {
+  BadRequestError,
+  ForbiddenError,
+  InternalServerError,
+} = require("../utils/errors");
 
-exports.createReview = async (req, res) => {
+// Create a new review
+exports.createReview = async (req, res, next) => {
   try {
     const { product, rating, comment } = req.body;
     const userId = req.user._id;
+
+    if (!product || !rating) {
+      return next(new BadRequestError("Product and rating are required."));
+    }
+
     const hasPurchased = await Order.findOne({
       user: userId,
       "items.product": product,
@@ -13,16 +26,18 @@ exports.createReview = async (req, res) => {
     });
 
     if (!hasPurchased) {
-      return sendResponse(
-        res,
-        403,
-        "You need to purchase this product before leaving a review."
+      return next(
+        new ForbiddenError(
+          "You need to purchase this product before leaving a review."
+        )
       );
     }
 
     const alreadyReviewed = await Review.findOne({ user: userId, product });
     if (alreadyReviewed) {
-      return sendResponse(res, 400, "You have already reviewed this product.");
+      return next(
+        new BadRequestError("You have already reviewed this product.")
+      );
     }
 
     const review = await Review.create({
@@ -32,21 +47,29 @@ exports.createReview = async (req, res) => {
       rating,
       comment,
     });
-    return sendResponse(res, 201, "Review submitted successfully.", review);
+
+    sendResponse(res, 201, "Review submitted successfully.", review);
   } catch (err) {
-    return sendResponse(res, 500, "Server error", err.message);
+    next(err);
   }
 };
 
-exports.getProductReviews = async (req, res) => {
+// Get all reviews for a product
+exports.getProductReviews = async (req, res, next) => {
   try {
     const productId = req.params.productId;
+
+    if (!productId) {
+      return next(new BadRequestError("Product ID is required."));
+    }
+
     const reviews = await Review.find({
       product: productId,
       hidden: false,
     }).populate("user", "name");
-    return sendResponse(res, 200, "Product reviews fetched", reviews);
+
+    sendResponse(res, 200, "Product reviews fetched", reviews);
   } catch (err) {
-    return sendResponse(res, 500, "Server error", err.message);
+    next(err);
   }
 };

@@ -1,8 +1,16 @@
+// controllers/authController.js
+
 const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { sendResponse } = require("../middleware/responseMiddleware");
+const {
+  BadRequestError,
+  UnauthorizedError,
+  ConflictError,
+} = require("../utils/errors");
 
+// Token generator
 const createTokenAndSetCookie = (user, res) => {
   const token = jwt.sign(
     { id: user._id, name: user.name, email: user.email, role: user.role },
@@ -20,25 +28,22 @@ const createTokenAndSetCookie = (user, res) => {
   res.cookie("token", token, cookieOptions);
 };
 
+// Register
 exports.registerUser = async (req, res, next) => {
   const { name, email, password, repeatPassword } = req.body;
 
   try {
     if (!name || !email || !password || !repeatPassword) {
-      res.status(400);
-      throw new Error("All fields are required");
+      return next(new BadRequestError("All fields are required"));
     }
 
     if (password !== repeatPassword) {
-      res.status(400);
-      throw new Error("Passwords do not match");
+      return next(new BadRequestError("Passwords do not match"));
     }
 
     const userExists = await User.findOne({ email });
-
     if (userExists) {
-      res.status(400);
-      throw new Error("User already exists");
+      return next(new ConflictError("User already exists"));
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -64,27 +69,23 @@ exports.registerUser = async (req, res, next) => {
   }
 };
 
+// Login
 exports.loginUser = async (req, res, next) => {
   const { email, password } = req.body;
 
   try {
     if (!email || !password) {
-      res.status(400);
-      throw new Error("Email and password are required");
+      return next(new BadRequestError("Email and password are required"));
     }
 
     const user = await User.findOne({ email });
-
     if (!user) {
-      res.status(400);
-      throw new Error("Invalid email or password");
+      return next(new UnauthorizedError("Invalid email or password"));
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
-
     if (!isMatch) {
-      res.status(400);
-      throw new Error("Invalid email or password");
+      return next(new UnauthorizedError("Invalid email or password"));
     }
 
     createTokenAndSetCookie(user, res);
@@ -102,12 +103,11 @@ exports.loginUser = async (req, res, next) => {
   }
 };
 
+// Get Me
 exports.getMe = async (req, res, next) => {
   try {
     if (!req.user) {
-      return res
-        .status(401)
-        .json({ success: false, message: "Not authenticated" });
+      return next(new UnauthorizedError("Not authenticated"));
     }
 
     sendResponse(res, 200, "User details fetched", {
@@ -121,6 +121,7 @@ exports.getMe = async (req, res, next) => {
   }
 };
 
+// Logout
 exports.logoutUser = async (req, res, next) => {
   try {
     res.clearCookie("token", {

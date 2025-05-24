@@ -1,5 +1,8 @@
+// controllers/wishlistController.js
+
 const Wishlist = require("../models/wishlist");
-const { sendResponse } = require("../middleware/responseMiddleware"); // ⬅️ Import it
+const { sendResponse } = require("../middleware/responseMiddleware");
+const { BadRequestError, NotFoundError } = require("../utils/errors");
 
 // GET /api/wishlist
 exports.getWishlist = async (req, res, next) => {
@@ -25,15 +28,13 @@ exports.getWishlist = async (req, res, next) => {
 };
 
 // POST /api/wishlist
-// Add a product to wishlist
 exports.addToWishlist = async (req, res, next) => {
   try {
     const userId = req.user._id;
     const { productId } = req.body;
 
     if (!productId) {
-      res.status(400);
-      throw new Error("Product ID is required");
+      return next(new BadRequestError("Product ID is required"));
     }
 
     let wishlist = await Wishlist.findOne({ user: userId });
@@ -67,10 +68,8 @@ exports.removeFromWishlist = async (req, res, next) => {
     const { itemId } = req.params;
 
     let wishlist = await Wishlist.findOne({ user: userId });
-
     if (!wishlist) {
-      res.status(404);
-      throw new Error("Wishlist not found");
+      return next(new NotFoundError("Wishlist not found"));
     }
 
     wishlist.items = wishlist.items.filter(
@@ -94,10 +93,8 @@ exports.clearWishlist = async (req, res, next) => {
   try {
     const userId = req.user._id;
     let wishlist = await Wishlist.findOne({ user: userId });
-
     if (!wishlist) {
-      res.status(404);
-      throw new Error("Wishlist not found");
+      return next(new NotFoundError("Wishlist not found"));
     }
 
     wishlist.items = [];

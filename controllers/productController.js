@@ -1,11 +1,13 @@
+// controllers/productController.js
+
 const Product = require("../models/Product");
 const Category = require("../models/Category");
-const { sendResponse } = require("../middleware/responseMiddleware"); // ⬅️ Import the helper
+const { sendResponse } = require("../middleware/responseMiddleware");
+const { BadRequestError, NotFoundError } = require("../utils/errors");
 
 // @desc    Fetch products (with optional category filter, pagination, sorting)
 // @route   GET /api/products
 // @access  Public
-
 exports.getProducts = async (req, res, next) => {
   try {
     const {
@@ -31,7 +33,6 @@ exports.getProducts = async (req, res, next) => {
 
     const filter = { isActive: true };
 
-    // category slugs → ObjectIds
     if (category) {
       const slugs = toList(category);
       const catDocs = await Category.find({ slug: { $in: slugs } }).select(
@@ -41,20 +42,17 @@ exports.getProducts = async (req, res, next) => {
       if (ids.length) filter.categories = { $in: ids };
     }
 
-    // price range
     if (priceMin || priceMax) {
       filter.price = {};
       if (priceMin) filter.price.$gte = Number(priceMin);
       if (priceMax) filter.price.$lte = Number(priceMax);
     }
 
-    // size
     if (size) {
       const sizes = toList(size).map((s) => s.toUpperCase());
       if (sizes.length) filter.sizes = { $in: sizes };
     }
 
-    // color
     if (color) {
       const colors = toList(color).map(
         (c) => c.charAt(0).toUpperCase() + c.slice(1).toLowerCase()
@@ -62,24 +60,20 @@ exports.getProducts = async (req, res, next) => {
       if (colors.length) filter.colors = { $in: colors };
     }
 
-    // keyword search
     if (search && search.trim()) {
       const regex = new RegExp(search.trim(), "i");
       filter.$or = [{ title: regex }, { description: regex }, { tags: regex }];
     }
 
-    // tag-based filter
     if (tags) {
       const tagList = toList(tags);
       if (tagList.length) filter.tags = { $in: tagList };
     }
 
-    // discounted only filter (discountPrice < price)
     if (discountOnly === "true") {
       filter.discountPrice = { $ne: null };
     }
 
-    // sorting
     let sortOption = { createdAt: -1 };
     switch (sort) {
       case "priceAsc":
@@ -99,8 +93,6 @@ exports.getProducts = async (req, res, next) => {
         const [field, dir] = sort.split(":");
         sortOption = { [field]: dir === "asc" ? 1 : -1 };
         break;
-      default:
-        break;
     }
 
     const skip = (Number(page) - 1) * Number(limit);
@@ -115,7 +107,6 @@ exports.getProducts = async (req, res, next) => {
         .lean(),
     ]);
 
-    // Final discount validation (for discountOnly, if needed)
     const products =
       discountOnly === "true"
         ? rawProducts.filter(
@@ -147,10 +138,7 @@ exports.getProductBySlug = async (req, res, next) => {
       .populate("categories", "name slug")
       .lean();
 
-    if (!product) {
-      res.status(404);
-      throw new Error("Product not found");
-    }
+    if (!product) return next(new NotFoundError("Product not found"));
 
     sendResponse(res, 200, "Product fetched successfully", product);
   } catch (error) {
@@ -158,7 +146,7 @@ exports.getProductBySlug = async (req, res, next) => {
   }
 };
 
-// Product Search Controller
+// @desc    Search products
 exports.searchProducts = async (req, res, next) => {
   try {
     const {
@@ -175,15 +163,11 @@ exports.searchProducts = async (req, res, next) => {
 
     const filter = { isActive: true };
 
-    // Apply text search if query string is valid
     if (typeof q === "string" && q.trim() !== "") {
       const regex = new RegExp(q.trim(), "i");
-
       filter.$or = [{ title: regex }, { description: regex }, { tags: regex }];
-    } else {
     }
 
-    // CATEGORY: Resolve slugs to IDs
     if (category) {
       const slugs = Array.isArray(category) ? category : [category];
       const catDocs = await Category.find({ slug: { $in: slugs } }).select(
@@ -192,42 +176,30 @@ exports.searchProducts = async (req, res, next) => {
       const ids = catDocs.map((c) => c._id);
       if (ids.length > 0) {
         filter.categories = { $in: ids };
-      } else {
-        console.log("⚠️ No matching category slugs found:", slugs);
       }
     }
 
-    // SIZE filter (normalized to uppercase)
     if (size) {
       const sizes = Array.isArray(size) ? size : [size];
-      const normalized = sizes.map((s) => s.toUpperCase());
-      filter.sizes = { $in: normalized };
+      filter.sizes = { $in: sizes.map((s) => s.toUpperCase()) };
     }
 
-    // COLOR filter (capitalize first letter)
     if (color) {
       const colors = Array.isArray(color) ? color : [color];
-      const normalized = colors.map(
-        (c) => c.charAt(0).toUpperCase() + c.slice(1).toLowerCase()
-      );
-      filter.colors = { $in: normalized };
+      filter.colors = {
+        $in: colors.map(
+          (c) => c.charAt(0).toUpperCase() + c.slice(1).toLowerCase()
+        ),
+      };
     }
 
-    // PRICE RANGE filter
     if (priceMin || priceMax) {
       filter.price = {};
-      if (priceMin) {
-        filter.price.$gte = parseFloat(priceMin);
-      }
-      if (priceMax) {
-        filter.price.$lte = parseFloat(priceMax);
-      }
+      if (priceMin) filter.price.$gte = parseFloat(priceMin);
+      if (priceMax) filter.price.$lte = parseFloat(priceMax);
     }
 
-    // Sort logic
-    /* -------- SORT LOGIC -------- */
-    let sortOption = { createdAt: -1 }; // default “newest”
-
+    let sortOption = { createdAt: -1 };
     switch (sort) {
       case "priceAsc":
         sortOption = { price: 1 };
@@ -238,15 +210,12 @@ exports.searchProducts = async (req, res, next) => {
       case "popularity":
         sortOption = { "rating.count": -1 };
         break;
-      case "newest":
       default:
         sortOption = { createdAt: -1 };
     }
 
-    // Pagination logic
     const skip = (Number(page) - 1) * Number(limit);
 
-    // Query
     const [products, total] = await Promise.all([
       Product.find(filter)
         .sort(sortOption)
@@ -257,7 +226,7 @@ exports.searchProducts = async (req, res, next) => {
       Product.countDocuments(filter),
     ]);
 
-    return sendResponse(res, 200, "Products fetched successfully", {
+    sendResponse(res, 200, "Products fetched successfully", {
       products,
       total,
       page: Number(page),
@@ -268,15 +237,13 @@ exports.searchProducts = async (req, res, next) => {
   }
 };
 
+// @desc    Fetch products by IDs (bulk fetch)
 exports.getProductsByIds = async (req, res, next) => {
   try {
     const { ids } = req.body;
 
     if (!Array.isArray(ids) || ids.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Product IDs array is required",
-      });
+      return next(new BadRequestError("Product IDs array is required"));
     }
 
     const products = await Product.find({ _id: { $in: ids }, isActive: true })

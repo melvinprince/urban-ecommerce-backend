@@ -1,25 +1,27 @@
+// controllers/orderController.js
+
 const Order = require("../models/Order");
 const Coupon = require("../models/Coupon");
 const { sendResponse } = require("../middleware/responseMiddleware");
 const { redeemCoupon } = require("./couponController");
+const { generateId } = require("../utils/genertaeId");
+const {
+  BadRequestError,
+  NotFoundError,
+  ForbiddenError,
+} = require("../utils/errors");
 
+// POST /api/orders
 exports.createOrder = async (req, res, next) => {
   try {
     const { items, address, paymentMethod, isPaid, totalAmount, couponCode } =
       req.body;
 
     if (!items || items.length === 0) {
-      res.status(400);
-      throw new Error("No items to order");
+      return next(new BadRequestError("No items to order"));
     }
 
-    let customOrderId;
-    let isUnique = false;
-    while (!isUnique) {
-      customOrderId = Math.floor(100000 + Math.random() * 900000);
-      const existing = await Order.findOne({ customOrderId });
-      if (!existing) isUnique = true;
-    }
+    const customOrderId = `ORD-${generateId(8)}`;
 
     const subtotal = items.reduce(
       (sum, item) => sum + item.price * item.quantity,
@@ -30,9 +32,9 @@ exports.createOrder = async (req, res, next) => {
     if (couponCode) {
       const couponDoc = await Coupon.findOne({ code: couponCode });
       if (!couponDoc) {
-        res.status(404);
-        throw new Error("Coupon not found");
+        return next(new NotFoundError("Coupon not found"));
       }
+
       let discount =
         couponDoc.type === "percentage"
           ? (subtotal * couponDoc.value) / 100
@@ -73,24 +75,21 @@ exports.createOrder = async (req, res, next) => {
   }
 };
 
+// GET /api/orders/:id
 exports.getOrderById = async (req, res, next) => {
   try {
     const order = await Order.findById(req.params.id)
       .populate("items.product", "title price images slug")
       .populate("user", "name email");
 
-    if (!order) {
-      res.status(404);
-      throw new Error("Order not found");
-    }
+    if (!order) return next(new NotFoundError("Order not found"));
 
     if (
       order.user &&
       req.user &&
       order.user._id.toString() !== req.user._id.toString()
     ) {
-      res.status(403);
-      throw new Error("Not authorized to view this order");
+      return next(new ForbiddenError("Not authorized to view this order"));
     }
 
     sendResponse(res, 200, "Order fetched successfully", order);
@@ -99,29 +98,27 @@ exports.getOrderById = async (req, res, next) => {
   }
 };
 
+// GET /api/orders/my
 exports.getMyOrders = async (req, res, next) => {
   try {
     const orders = await Order.find({ user: req.user._id })
       .sort({ createdAt: -1 })
       .select("-__v");
-
     sendResponse(res, 200, "Orders fetched successfully", orders);
   } catch (error) {
     next(error);
   }
 };
 
+// GET /api/orders/custom/:customId
 exports.getOrderByCustomId = async (req, res, next) => {
   try {
-    const customOrderId = parseInt(req.params.customId);
-    const order = await Order.findOne({ customOrderId })
+    const { customId } = req.params;
+    const order = await Order.findOne({ customOrderId: customId })
       .populate("items.product", "title price images slug")
       .populate("user", "name email");
 
-    if (!order) {
-      res.status(404);
-      throw new Error("Order not found");
-    }
+    if (!order) return next(new NotFoundError("Order not found"));
 
     sendResponse(res, 200, "Order fetched successfully", order);
   } catch (error) {
@@ -129,13 +126,11 @@ exports.getOrderByCustomId = async (req, res, next) => {
   }
 };
 
+// GET /api/orders/by-email/:email
 exports.getOrdersByEmail = async (req, res, next) => {
   try {
     const { email } = req.params;
-    if (!email) {
-      res.status(400);
-      throw new Error("Email is required");
-    }
+    if (!email) return next(new BadRequestError("Email is required"));
 
     const orders = await Order.find({ "address.email": email })
       .sort({ createdAt: -1 })
@@ -143,8 +138,7 @@ exports.getOrdersByEmail = async (req, res, next) => {
       .populate("items.product", "title price images slug");
 
     if (!orders.length) {
-      res.status(404);
-      throw new Error("No orders found for this email");
+      return next(new NotFoundError("No orders found for this email"));
     }
 
     sendResponse(res, 200, "Orders fetched successfully", orders);
@@ -153,28 +147,24 @@ exports.getOrdersByEmail = async (req, res, next) => {
   }
 };
 
+// PATCH /api/orders/cancel/:customOrderId
 exports.cancelOrder = async (req, res, next) => {
   try {
     const { customOrderId } = req.params;
     const order = await Order.findOne({ customOrderId });
 
-    if (!order) {
-      res.status(404);
-      throw new Error("Order not found");
-    }
+    if (!order) return next(new NotFoundError("Order not found"));
 
     if (
       order.user &&
       req.user &&
       order.user.toString() !== req.user._id.toString()
     ) {
-      res.status(403);
-      throw new Error("Not authorized to cancel this order");
+      return next(new ForbiddenError("Not authorized to cancel this order"));
     }
 
     if (!order.canModify || order.status === "shipped") {
-      res.status(400);
-      throw new Error("Order can no longer be cancelled");
+      return next(new BadRequestError("Order can no longer be cancelled"));
     }
 
     order.status = "cancelled";
@@ -188,30 +178,25 @@ exports.cancelOrder = async (req, res, next) => {
   }
 };
 
+// POST /api/orders/cancel-guest
 exports.cancelOrderAsGuest = async (req, res, next) => {
   try {
     const { customOrderId, email } = req.body;
 
     if (!customOrderId || !email) {
-      res.status(400);
-      throw new Error("Order ID and email are required");
+      return next(new BadRequestError("Order ID and email are required"));
     }
 
     const order = await Order.findOne({ customOrderId });
 
-    if (!order) {
-      res.status(404);
-      throw new Error("Order not found");
-    }
+    if (!order) return next(new NotFoundError("Order not found"));
 
     if (order.address.email !== email) {
-      res.status(403);
-      throw new Error("Email does not match order record");
+      return next(new ForbiddenError("Email does not match order record"));
     }
 
     if (!order.canModify || order.status === "shipped") {
-      res.status(400);
-      throw new Error("Order can no longer be cancelled");
+      return next(new BadRequestError("Order can no longer be cancelled"));
     }
 
     order.status = "cancelled";
@@ -225,32 +210,26 @@ exports.cancelOrderAsGuest = async (req, res, next) => {
   }
 };
 
+// PATCH /api/orders/edit/:customId
 exports.editOrder = async (req, res, next) => {
   try {
     const { customId } = req.params;
     const { address, email } = req.body;
 
     const order = await Order.findOne({ customOrderId: customId });
-
-    if (!order) {
-      res.status(404);
-      throw new Error("Order not found");
-    }
+    if (!order) return next(new NotFoundError("Order not found"));
 
     if (!order.canModify || order.status === "shipped") {
-      res.status(400);
-      throw new Error("Order can no longer be modified");
+      return next(new BadRequestError("Order can no longer be modified"));
     }
 
     if (req.user) {
       if (order.user && order.user.toString() !== req.user._id.toString()) {
-        res.status(403);
-        throw new Error("Not authorized to edit this order");
+        return next(new ForbiddenError("Not authorized to edit this order"));
       }
     } else {
       if (!email || email !== order.address?.email) {
-        res.status(403);
-        throw new Error("Email verification failed");
+        return next(new ForbiddenError("Email verification failed"));
       }
     }
 

@@ -1,4 +1,7 @@
+// middleware/handleValidationErrors.js
+
 const { validationResult } = require("express-validator");
+const { BadRequestError } = require("../utils/errors");
 
 const handleValidationErrors = (req, res, next) => {
   const errors = validationResult(req);
@@ -7,16 +10,16 @@ const handleValidationErrors = (req, res, next) => {
       "❌ Validation Error Details:",
       JSON.stringify(errors.array(), null, 2)
     );
-    return res.status(400).json({
-      success: false,
-      message: "Validation failed",
-      errors: errors.array().map((err) => ({
-        field: err.param || err.path,
-        message: err.msg,
-        value: err.value,
-        location: err.location,
-      })),
-    });
+
+    // Format errors
+    const formattedErrors = errors.array().map((err) => ({
+      field: err.param || err.path,
+      message: err.msg,
+      value: err.value,
+      location: err.location,
+    }));
+
+    return next(new BadRequestError("Validation failed", formattedErrors));
   }
 
   next();

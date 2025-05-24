@@ -1,86 +1,83 @@
 // backend/controllers/couponController.js
+
 const mongoose = require("mongoose");
 const Coupon = require("../models/Coupon");
-const Order = require("../models/Order");
+const { sendResponse } = require("../middleware/responseMiddleware");
+const { NotFoundError, BadRequestError } = require("../utils/errors");
 
 // POST /api/coupons/apply
 exports.applyCoupon = async (req, res, next) => {
-  const { code, subtotal, email } = req.body;
-  const userId = req.user?.id;
-  const now = new Date();
+  try {
+    const { code, subtotal, email } = req.body;
+    const userId = req.user?.id;
+    const now = new Date();
 
-  const coupon = await Coupon.findOne({ code });
-  if (!coupon) {
-    return res
-      .status(404)
-      .json({ success: false, message: "Invalid coupon code." });
-  }
+    if (!code || subtotal == null) {
+      return next(new BadRequestError("Code and subtotal are required"));
+    }
 
-  // Date validity
-  if (now < coupon.startDate || now > coupon.expiryDate) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Coupon is not active." });
-  }
+    const coupon = await Coupon.findOne({ code });
+    if (!coupon) {
+      return next(new NotFoundError("Invalid coupon code."));
+    }
 
-  // Global usage limit
-  if (coupon.usedCount >= coupon.usageLimit) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Coupon usage limit reached." });
-  }
+    // Date validity
+    if (now < coupon.startDate || now > coupon.expiryDate) {
+      return next(new BadRequestError("Coupon is not active."));
+    }
 
-  // Check if user has already used it
-  if (
-    userId &&
-    coupon.usersUsed.map((id) => id.toString()).includes(userId.toString())
-  ) {
-    return res
-      .status(400)
-      .json({ success: false, message: "You have already used this coupon." });
-  }
+    // Global usage limit
+    if (coupon.usedCount >= coupon.usageLimit) {
+      return next(new BadRequestError("Coupon usage limit reached."));
+    }
 
-  if (
-    !userId &&
-    email &&
-    coupon.emailsUsed.map((e) => e.toLowerCase()).includes(email.toLowerCase())
-  ) {
-    return res.status(400).json({
-      success: false,
-      message: "This email has already used the coupon.",
-    });
-  }
+    // Check if user has already used it
+    if (
+      userId &&
+      coupon.usersUsed.map((id) => id.toString()).includes(userId.toString())
+    ) {
+      return next(new BadRequestError("You have already used this coupon."));
+    }
 
-  // Minimum subtotal
-  if (subtotal < coupon.minSubtotal) {
-    return res.status(400).json({
-      success: false,
-      message: `Minimum subtotal is ${coupon.minSubtotal}.`,
-    });
-  }
+    if (
+      !userId &&
+      email &&
+      coupon.emailsUsed
+        .map((e) => e.toLowerCase())
+        .includes(email.toLowerCase())
+    ) {
+      return next(
+        new BadRequestError("This email has already used the coupon.")
+      );
+    }
 
-  // Calculate discount
-  let discount =
-    coupon.type === "percentage"
-      ? (subtotal * coupon.value) / 100
-      : coupon.value;
-  discount = Math.min(discount, subtotal);
+    // Minimum subtotal check
+    if (subtotal < coupon.minSubtotal) {
+      return next(
+        new BadRequestError(`Minimum subtotal is ${coupon.minSubtotal}.`)
+      );
+    }
 
-  res.json({
-    success: true,
-    message: "Coupon applied.",
-    data: {
+    // Calculate discount
+    let discount =
+      coupon.type === "percentage"
+        ? (subtotal * coupon.value) / 100
+        : coupon.value;
+    discount = Math.min(discount, subtotal);
+
+    sendResponse(res, 200, "Coupon applied", {
       code: coupon.code,
       type: coupon.type,
       value: coupon.value,
       discount,
-    },
-  });
+    });
+  } catch (error) {
+    next(error);
+  }
 };
 
 // Called within your order-placement logic
 exports.redeemCoupon = async ({ code, userId, email }) => {
-  // Atomically bump usage and record user/email
   await Coupon.findOneAndUpdate(
     { code },
     {

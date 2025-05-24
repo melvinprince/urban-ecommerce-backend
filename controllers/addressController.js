@@ -1,8 +1,11 @@
+// controllers/userAddressController.js
+
 const { sendResponse } = require("../middleware/responseMiddleware");
+const { BadRequestError, NotFoundError } = require("../utils/errors");
 
 exports.getUserAddresses = async (req, res, next) => {
   try {
-    const addresses = req.user.addresses || [];
+    const addresses = req.user?.addresses || [];
     sendResponse(res, 200, "Addresses fetched", addresses);
   } catch (err) {
     next(err);
@@ -11,9 +14,9 @@ exports.getUserAddresses = async (req, res, next) => {
 
 exports.addUserAddress = async (req, res, next) => {
   try {
-    if (!req.user || !req.user.addresses) {
+    if (!req.user || !Array.isArray(req.user.addresses)) {
       console.warn("❗ User or addresses array not found");
-      return res.status(400).json({ message: "User not found or invalid" });
+      return next(new NotFoundError("User not found or addresses missing"));
     }
 
     req.user.addresses.push(req.body);
@@ -30,9 +33,8 @@ exports.updateUserAddress = async (req, res, next) => {
     const index = parseInt(req.params.index);
     const { address } = req.body;
 
-    if (index < 0 || index >= req.user.addresses.length) {
-      res.status(400);
-      throw new Error("Invalid address index");
+    if (isNaN(index) || index < 0 || index >= req.user.addresses.length) {
+      return next(new BadRequestError("Invalid address index"));
     }
 
     req.user.addresses[index] = { ...req.user.addresses[index], ...address };
@@ -47,9 +49,9 @@ exports.updateUserAddress = async (req, res, next) => {
 exports.deleteUserAddress = async (req, res, next) => {
   try {
     const index = parseInt(req.params.index);
-    if (index < 0 || index >= req.user.addresses.length) {
-      res.status(400);
-      throw new Error("Invalid address index");
+
+    if (isNaN(index) || index < 0 || index >= req.user.addresses.length) {
+      return next(new BadRequestError("Invalid address index"));
     }
 
     req.user.addresses.splice(index, 1);
