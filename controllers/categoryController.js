@@ -4,9 +4,6 @@ const Category = require("../models/Category");
 const { sendResponse } = require("../middleware/responseMiddleware");
 const { InternalServerError } = require("../utils/errors");
 
-// @desc    Get all categories
-// @route   GET /api/categories
-// @access  Public
 exports.getAllCategories = async (req, res, next) => {
   try {
     const categories = await Category.find().sort({ name: 1 });

@@ -1,14 +1,50 @@
+// backend/seed/seed.js
 require("dotenv").config();
 const mongoose = require("mongoose");
+const { faker } = require("@faker-js/faker"); // For realistic names
 
 const Category = require("../models/Category");
 const Product = require("../models/Product");
 const User = require("../models/User");
 const Cart = require("../models/Cart");
 const Wishlist = require("../models/Wishlist");
-const Order = require("../models/Order"); // if you have Order model
-
+const Order = require("../models/Order");
 const connectDB = require("../config/db");
+
+const randomSizes = [
+  ["S", "M", "L"],
+  ["M", "L", "XL"],
+  ["One Size"],
+  ["XS", "M", "L", "XL"],
+  ["M", "XL"],
+];
+
+const randomColors = [
+  ["Black", "White"],
+  ["Blue", "Red", "Green"],
+  ["Beige", "Brown"],
+  ["Pink", "Lavender"],
+  ["Olive Green", "Navy"],
+  ["Yellow", "Purple", "Grey"],
+];
+
+const randomTags = [
+  "new",
+  "bestseller",
+  "limited",
+  "exclusive",
+  "eco-friendly",
+];
+
+function getRandom(array) {
+  return array[Math.floor(Math.random() * array.length)];
+}
+
+function getRandomDiscount(price) {
+  return Math.random() < 0.4
+    ? Math.floor(price * (0.7 + Math.random() * 0.2))
+    : null;
+}
 
 async function gatherAncestors(cat, allCats) {
   const ancestors = [];
@@ -28,109 +64,130 @@ const seed = async () => {
   try {
     await connectDB();
 
-
-    await Category.deleteMany();
-    await Product.deleteMany();
-    await User.deleteMany();
-    await Cart.deleteMany();
-    await Wishlist.deleteMany();
-    if (Order.collection) await Order.deleteMany();
-
+    await Promise.all([
+      Category.deleteMany(),
+      Product.deleteMany(),
+      User.deleteMany(),
+      Cart.deleteMany(),
+      Wishlist.deleteMany(),
+      Order.deleteMany().catch(() => {}),
+    ]);
     console.log("✅ Existing data cleared.");
 
     console.log("⏳ Seeding categories...");
-    const [men, women, kids, sneakers] = await Category.create([
-      { name: "Men's Apparel", slug: "mens-apparel" },
-      { name: "Women's Apparel", slug: "womens-apparel" },
-      { name: "Kids (3+)", slug: "kids-apparel" },
-      { name: "Sneakers", slug: "sneakers" },
+    // Main Categories
+    const [men, women, kids, sneakers, accessories] = await Category.create([
+      { name: "Men's Apparel", slug: `mens-${Date.now()}` },
+      { name: "Women's Apparel", slug: `womens-${Date.now()}` },
+      { name: "Kids Apparel", slug: `kids-${Date.now()}` },
+      { name: "Sneakers", slug: `sneakers-${Date.now()}` },
+      { name: "Accessories", slug: `accessories-${Date.now()}` },
     ]);
 
     const subCats = await Category.create([
-      // Men's Apparel
-      { name: "Shirts", slug: "mens-shirts", parent: men._id },
-      { name: "Pants", slug: "mens-pants", parent: men._id },
-      { name: "Outerwear", slug: "mens-outerwear", parent: men._id },
-      { name: "Accessories", slug: "mens-accessories", parent: men._id },
-      // Women's Apparel
-      { name: "Dresses", slug: "womens-dresses", parent: women._id },
-      { name: "Tops", slug: "womens-tops", parent: women._id },
-      { name: "Skirts", slug: "womens-skirts", parent: women._id },
-      { name: "Handbags", slug: "womens-handbags", parent: women._id },
-      // Kids Apparel
-      { name: "Boys Apparel", slug: "kids-boys-apparel", parent: kids._id },
-      { name: "Girls Apparel", slug: "kids-girls-apparel", parent: kids._id },
-      { name: "Toys & Fun", slug: "kids-toys", parent: kids._id },
-      // Sneakers
-      { name: "Running Shoes", slug: "sneakers-running", parent: sneakers._id },
+      { name: "Shirts", slug: `shirts-${Date.now()}`, parent: men._id },
+      { name: "Pants", slug: `pants-${Date.now()}`, parent: men._id },
+      { name: "Outerwear", slug: `outerwear-${Date.now()}`, parent: men._id },
+      { name: "Dresses", slug: `dresses-${Date.now()}`, parent: women._id },
+      { name: "Tops", slug: `tops-${Date.now()}`, parent: women._id },
+      { name: "Skirts", slug: `skirts-${Date.now()}`, parent: women._id },
+      { name: "Boys", slug: `boys-${Date.now()}`, parent: kids._id },
+      { name: "Girls", slug: `girls-${Date.now()}`, parent: kids._id },
       {
-        name: "Casual Sneakers",
-        slug: "sneakers-casual",
+        name: "Running Shoes",
+        slug: `running-${Date.now()}`,
         parent: sneakers._id,
       },
-      { name: "High-tops", slug: "sneakers-high-tops", parent: sneakers._id },
+      {
+        name: "Casual Sneakers",
+        slug: `casual-${Date.now()}`,
+        parent: sneakers._id,
+      },
+      { name: "Bags", slug: `bags-${Date.now()}`, parent: accessories._id },
+      { name: "Hats", slug: `hats-${Date.now()}`, parent: accessories._id },
+      {
+        name: "Jewelry",
+        slug: `jewelry-${Date.now()}`,
+        parent: accessories._id,
+      },
     ]);
 
-    const [shirts, pants, dresses, tops] = subCats;
-
-    await Category.create([
-      // Mens Shirts
-      { name: "Dress Shirts", slug: "mens-dress-shirts", parent: shirts._id },
-      { name: "Casual Shirts", slug: "mens-casual-shirts", parent: shirts._id },
-      // Mens Pants
-      { name: "Jeans", slug: "mens-jeans", parent: pants._id },
-      { name: "Chinos", slug: "mens-chinos", parent: pants._id },
-      { name: "Shorts", slug: "mens-shorts", parent: pants._id },
-      // Womens Dresses
+    const deeperSubCats = await Category.create([
       {
-        name: "Evening Dresses",
-        slug: "womens-evening-dresses",
-        parent: dresses._id,
+        name: "Casual Shirts",
+        slug: `casualshirts-${Date.now()}`,
+        parent: subCats[0]._id,
       },
       {
-        name: "Casual Dresses",
-        slug: "womens-casual-dresses",
-        parent: dresses._id,
+        name: "Dress Pants",
+        slug: `dresspants-${Date.now()}`,
+        parent: subCats[1]._id,
       },
-      // Womens Tops
-      { name: "Blouses", slug: "womens-blouses", parent: tops._id },
-      { name: "T-Shirts", slug: "womens-tshirts", parent: tops._id },
+      {
+        name: "Winter Jackets",
+        slug: `winterjackets-${Date.now()}`,
+        parent: subCats[2]._id,
+      },
+      {
+        name: "Summer Dresses",
+        slug: `summerdresses-${Date.now()}`,
+        parent: subCats[3]._id,
+      },
+      {
+        name: "T-Shirts",
+        slug: `tshirts-${Date.now()}`,
+        parent: subCats[4]._id,
+      },
+      {
+        name: "Pleated Skirts",
+        slug: `pleatedskirts-${Date.now()}`,
+        parent: subCats[5]._id,
+      },
+      {
+        name: "Boys Tees",
+        slug: `boystees-${Date.now()}`,
+        parent: subCats[6]._id,
+      },
+      {
+        name: "Girls Dresses",
+        slug: `girlsdresses-${Date.now()}`,
+        parent: subCats[7]._id,
+      },
     ]);
 
     console.log("✅ Categories seeded.");
 
     console.log("⏳ Seeding products...");
     const allCategories = await Category.find();
-    const categories = allCategories.filter(
-      (cat) => cat.slug !== "kids-apparel"
-    );
-
     const productsToCreate = [];
 
-    for (const cat of categories) {
+    for (const cat of allCategories) {
       const ancestors = await gatherAncestors(cat, allCategories);
       const catIds = [cat._id, ...ancestors];
 
-      for (let i = 1; i <= 3; i++) {
+      for (let i = 1; i <= 5; i++) {
+        const price = Math.floor(Math.random() * 100) + 20;
+        const discount = getRandomDiscount(price);
+
         productsToCreate.push({
           title: `${cat.name} Item ${i}`,
-          slug: `${cat.slug}-item-${i}`,
-          description: `This is a detailed description for ${cat.name} Item ${i}. Premium quality.`,
-          shortDescription: `High-quality ${cat.name.toLowerCase()} item ${i}.`,
-          price: Math.floor(Math.random() * 80) + 20,
-          discountPrice: null,
-          sku: `SKU-${cat.slug.toUpperCase()}-${i}`,
+          slug: `${cat.slug}-item-${i}-${Date.now()}`,
+          description: faker.commerce.productDescription(),
+          shortDescription: faker.commerce.productAdjective(),
+          price,
+          discountPrice: discount,
+          sku: `SKU-${cat.slug.toUpperCase()}-${i}-${Date.now()}`,
           categories: catIds,
-          sizes: ["S", "M", "L"],
-          colors: ["Black", "Olive Green", "White"],
+          sizes: getRandom(randomSizes),
+          colors: getRandom(randomColors),
           images: [
-            `https://picsum.photos/seed/${cat.slug}-${i}/200/300`,
-            `https://picsum.photos/seed/${cat.slug}-${i}-2/200/300`,
+            `https://picsum.photos/seed/${cat.slug}-${i}/400/600`,
+            `https://picsum.photos/seed/${cat.slug}-${i}-2/400/600`,
           ],
-          stock: Math.floor(Math.random() * 90) + 10,
-          isFeatured: false,
+          stock: Math.floor(Math.random() * 100) + 1,
+          isFeatured: Math.random() < 0.2,
           isActive: true,
-          tags: [],
+          tags: [getRandom(randomTags)],
           rating: { average: 0, count: 0 },
         });
       }
