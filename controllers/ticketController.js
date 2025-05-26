@@ -1,4 +1,4 @@
-// controllers/ticketController.js
+// backend/controllers/ticketController.js
 
 const Ticket = require("../models/Ticket");
 const { sendResponse } = require("../middleware/responseMiddleware");
@@ -20,20 +20,6 @@ const detectMagicType = (buffer) => {
   return null;
 };
 
-// Upload directory
-const UPLOAD_DIR = path.join(__dirname, "..", "uploads", "tickets");
-
-// Save buffer to disk helper
-async function saveBufferToDisk(buffer, originalName) {
-  const ext = path.extname(originalName);
-  const filename = `${Date.now()}-${Math.random()
-    .toString(36)
-    .substr(2)}${ext}`;
-  const savePath = path.join(UPLOAD_DIR, filename);
-  await fs.writeFile(savePath, buffer);
-  return filename;
-}
-
 // Create Ticket
 exports.createTicket = async (req, res, next) => {
   try {
@@ -43,23 +29,24 @@ exports.createTicket = async (req, res, next) => {
       return next(new BadRequestError("Subject and message are required"));
     }
 
-    for (const file of req.files || []) {
-      const fileType = detectMagicType(file.buffer);
-      if (!fileType) {
-        return next(
-          new BadRequestError(
-            `Unsupported or invalid file type: ${file.originalname}`
-          )
-        );
-      }
-    }
-
     const attachments = [];
     for (const file of req.files || []) {
-      const filename = await saveBufferToDisk(file.buffer, file.originalname);
+      const filePath = `/uploads/tickets/${file.filename}`;
+      const fileBuffer = await fs.readFile(
+        path.join(__dirname, "..", filePath)
+      );
+      const fileType = detectMagicType(fileBuffer);
+
+      if (!fileType) {
+        await fs.unlink(path.join(__dirname, "..", filePath)); // Cleanup invalid file
+        return next(
+          new BadRequestError(`Invalid file type: ${file.originalname}`)
+        );
+      }
+
       attachments.push({
-        url: `/uploads/tickets/${filename}`,
-        type: detectMagicType(file.buffer),
+        url: filePath,
+        type: fileType,
       });
     }
 
@@ -96,23 +83,24 @@ exports.replyToTicket = async (req, res, next) => {
       return next(new BadRequestError("Message cannot be empty"));
     }
 
-    for (const file of req.files || []) {
-      const fileType = detectMagicType(file.buffer);
-      if (!fileType) {
-        return next(
-          new BadRequestError(
-            `Unsupported or invalid file type: ${file.originalname}`
-          )
-        );
-      }
-    }
-
     const attachments = [];
     for (const file of req.files || []) {
-      const filename = await saveBufferToDisk(file.buffer, file.originalname);
+      const filePath = `/uploads/tickets/${file.filename}`;
+      const fileBuffer = await fs.readFile(
+        path.join(__dirname, "..", filePath)
+      );
+      const fileType = detectMagicType(fileBuffer);
+
+      if (!fileType) {
+        await fs.unlink(path.join(__dirname, "..", filePath));
+        return next(
+          new BadRequestError(`Invalid file type: ${file.originalname}`)
+        );
+      }
+
       attachments.push({
-        url: `/uploads/tickets/${filename}`,
-        type: detectMagicType(file.buffer),
+        url: filePath,
+        type: fileType,
       });
     }
 
@@ -126,7 +114,6 @@ exports.replyToTicket = async (req, res, next) => {
     if (isAdmin) ticket.status = "replied";
 
     await ticket.save();
-
     sendResponse(res, 200, "Reply added", ticket);
   } catch (err) {
     next(err);
