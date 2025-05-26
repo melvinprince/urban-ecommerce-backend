@@ -10,6 +10,7 @@ const {
   ConflictError,
 } = require("../utils/errors");
 
+// Token generator
 const createTokenAndSetCookie = (user, res) => {
   const token = jwt.sign(
     { id: user._id, name: user.name, email: user.email, role: user.role },
@@ -20,7 +21,7 @@ const createTokenAndSetCookie = (user, res) => {
   const cookieOptions = {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "none",
+    sameSite: process.env.NODE_ENV === "test" ? "lax" : "strict",
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   };
 
