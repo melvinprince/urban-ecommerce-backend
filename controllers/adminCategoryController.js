@@ -1,5 +1,3 @@
-// backend/controllers/adminCategoryController.js
-
 const Category = require("../models/Category");
 const { BadRequestError, NotFoundError } = require("../utils/errors");
 const { sendResponse } = require("../middleware/responseMiddleware");
@@ -19,7 +17,9 @@ const deleteImageFile = async (imgPath) => {
 // @desc Create a new category
 exports.createCategory = async (req, res, next) => {
   try {
-    const { name, slug, parent, description } = req.body;
+    const { name, slug, parent, description, metaTitle, metaDescription } =
+      req.body;
+
     if (!name) {
       if (req.file)
         await deleteImageFile(`/uploads/category-images/${req.file.filename}`);
@@ -31,6 +31,8 @@ exports.createCategory = async (req, res, next) => {
       slug: slug || name.toLowerCase().replace(/\s+/g, "-"),
       parent: parent || null,
       description,
+      metaTitle,
+      metaDescription,
       image: req.file
         ? `/uploads/category-images/${req.file.filename}`
         : undefined,
@@ -45,10 +47,37 @@ exports.createCategory = async (req, res, next) => {
 };
 
 // @desc Get all categories
+// @desc Get all categories (with product count)
 exports.getAllCategories = async (req, res, next) => {
   try {
-    const categories = await Category.find().populate("parent", "name");
-    sendResponse(res, 200, "Categories fetched", categories);
+    const categories = await Category.aggregate([
+      {
+        $lookup: {
+          from: "products",
+          localField: "_id",
+          foreignField: "categories",
+          as: "products",
+        },
+      },
+      {
+        $addFields: {
+          productCount: { $size: "$products" },
+        },
+      },
+      {
+        $project: {
+          products: 0, // Exclude the full product array
+        },
+      },
+    ]);
+
+    // Populate parent field (for tree view)
+    const categoriesWithParent = await Category.populate(categories, {
+      path: "parent",
+      select: "name",
+    });
+
+    sendResponse(res, 200, "Categories fetched", categoriesWithParent);
   } catch (err) {
     next(err);
   }
@@ -78,11 +107,16 @@ exports.updateCategory = async (req, res, next) => {
       return next(new NotFoundError("Category not found"));
     }
 
-    const { name, slug, parent, description } = req.body;
+    const { name, slug, parent, description, metaTitle, metaDescription } =
+      req.body;
+
     if (name) category.name = name;
     if (slug) category.slug = slug;
     if (parent !== undefined) category.parent = parent || null;
     if (description !== undefined) category.description = description;
+    if (metaTitle !== undefined) category.metaTitle = metaTitle;
+    if (metaDescription !== undefined)
+      category.metaDescription = metaDescription;
 
     if (req.file) {
       if (category.image) await deleteImageFile(category.image);
@@ -101,12 +135,21 @@ exports.updateCategory = async (req, res, next) => {
 // @desc Delete a category
 exports.deleteCategory = async (req, res, next) => {
   try {
-    const category = await Category.findByIdAndDelete(req.params.id);
+    const category = await Category.findById(req.params.id);
     if (!category) return next(new NotFoundError("Category not found"));
 
-    if (category.image) {
-      await deleteImageFile(category.image);
+    const hasChildren = await Category.exists({ parent: req.params.id });
+    if (hasChildren) {
+      return next(
+        new BadRequestError(
+          "Cannot delete this category because it has child categories. Please reassign or delete them first."
+        )
+      );
     }
+
+    if (category.image) await deleteImageFile(category.image);
+
+    await category.deleteOne();
 
     sendResponse(res, 200, "Category deleted");
   } catch (err) {
