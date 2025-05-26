@@ -32,7 +32,7 @@ const ticketRoutes = require("./routes/ticketRoutes");
 const reviewRoutes = require("./routes/reviewRoutes");
 const couponRoutes = require("./routes/couponRoutes");
 
-//admin routes
+// Admin routes
 const adminProductRoutes = require("./routes/adminProductRoutes");
 const adminCategoryRoutes = require("./routes/adminCategoryRoutes");
 const adminOrderRoutes = require("./routes/adminOrderRoutes");
@@ -43,7 +43,25 @@ const adminUserRoutes = require("./routes/adminUserRoutes");
 const app = express();
 
 // Security & Logging Middleware
-app.use(helmet());
+app.use(
+  helmet({
+    crossOriginOpenerPolicy: false,
+    crossOriginResourcePolicy: {
+      policy: "cross-origin", // allow access from different origins
+    },
+    contentSecurityPolicy: {
+      useDefaults: true,
+      directives: {
+        "img-src": [
+          "'self'",
+          "data:",
+          "http://localhost:8000",
+          "http://localhost:3000",
+        ],
+      },
+    },
+  })
+);
 
 // CORS Setup
 const allowedOrigins = process.env.FRONT_END_URL
@@ -67,6 +85,15 @@ app.use(
 app.use(morgan("dev"));
 app.use(express.json());
 app.use(cookieParser());
+
+// CSP for static files (uploads)
+app.use("/uploads", (req, res, next) => {
+  res.setHeader(
+    "Content-Security-Policy",
+    "default-src 'self'; img-src 'self' data: http://localhost:8000 http://localhost:3000; object-src 'none';"
+  );
+  next();
+});
 
 // Serve static uploads (for product images & tickets)
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
