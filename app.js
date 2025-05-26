@@ -38,14 +38,26 @@ const app = express();
 
 // Security & Logging Middleware
 app.use(helmet());
-console.log("✅ FRONT_END_URL loaded:", process.env.FRONT_END_URL);
+
+//CORS Setup
+const allowedOrigins = process.env.FRONT_END_URL
+  ? process.env.FRONT_END_URL.split(",").map((url) => url.trim())
+  : [];
 
 app.use(
   cors({
-    origin: process.env.FRONT_END_URL,
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
   })
 );
+
 app.use(morgan("dev"));
 app.use(express.json());
 app.use(cookieParser());
