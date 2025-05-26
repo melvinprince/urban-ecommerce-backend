@@ -1,5 +1,3 @@
-// app.js
-
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
@@ -33,13 +31,14 @@ const addressRoutes = require("./routes/addressRoutes");
 const ticketRoutes = require("./routes/ticketRoutes");
 const reviewRoutes = require("./routes/reviewRoutes");
 const couponRoutes = require("./routes/couponRoutes");
+const adminProductRoutes = require("./routes/adminProductRoutes"); // NEW
 
 const app = express();
 
 // Security & Logging Middleware
 app.use(helmet());
 
-//CORS Setup
+// CORS Setup
 const allowedOrigins = process.env.FRONT_END_URL
   ? process.env.FRONT_END_URL.split(",").map((url) => url.trim())
   : [];
@@ -62,7 +61,7 @@ app.use(morgan("dev"));
 app.use(express.json());
 app.use(cookieParser());
 
-// Serve static uploads (for ticket file access)
+// Serve static uploads (for product images & tickets)
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // Health Check
@@ -85,10 +84,8 @@ app.use("/api/coupons", couponRoutes);
 app.use("/api/cart", auth, cartRoutes);
 app.use("/api/user/addresses", auth, addressRoutes);
 
-// Admin Route Prefix (auth + admin required)
-app.use("/api/admin", auth, isAdmin, (req, res) => {
-  res.send("✅ Admin Access Granted!");
-});
+// Admin Routes (auth + admin required)
+app.use("/api/admin/products", auth, isAdmin, adminProductRoutes);
 
 // Fallback for undefined routes
 app.use("*", (req, res) => res.status(404).json({ message: "Not Found" }));
