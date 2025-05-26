@@ -36,6 +36,7 @@ const couponRoutes = require("./routes/couponRoutes");
 const adminProductRoutes = require("./routes/adminProductRoutes");
 const adminCategoryRoutes = require("./routes/adminCategoryRoutes");
 const adminOrderRoutes = require("./routes/adminOrderRoutes");
+const adminCouponRoutes = require("./routes/adminCouponRoutes");
 
 const app = express();
 
@@ -92,6 +93,7 @@ app.use("/api/user/addresses", auth, addressRoutes);
 app.use("/api/admin/products", auth, isAdmin, adminProductRoutes);
 app.use("/api/admin/categories", auth, isAdmin, adminCategoryRoutes);
 app.use("/api/admin/orders", auth, isAdmin, adminOrderRoutes);
+app.use("/api/admin/coupons", auth, isAdmin, adminCouponRoutes);
 
 // Fallback for undefined routes
 app.use("*", (req, res) => res.status(404).json({ message: "Not Found" }));
