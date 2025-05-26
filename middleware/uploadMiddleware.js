@@ -4,32 +4,43 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 
-// Directory: /uploads/product-images
+// Ensure folders exist
+const ensureDir = (dirPath) => {
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath, { recursive: true });
+  }
+};
+
+// Product Images Directory
 const PRODUCT_IMAGES_DIR = path.join(
   __dirname,
   "..",
   "uploads",
   "product-images"
 );
+ensureDir(PRODUCT_IMAGES_DIR);
 
-// Ensure the directory exists
-if (!fs.existsSync(PRODUCT_IMAGES_DIR)) {
-  fs.mkdirSync(PRODUCT_IMAGES_DIR, { recursive: true });
-}
+// Category Images Directory
+const CATEGORY_IMAGES_DIR = path.join(
+  __dirname,
+  "..",
+  "uploads",
+  "category-images"
+);
+ensureDir(CATEGORY_IMAGES_DIR);
 
-// Multer storage config
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, PRODUCT_IMAGES_DIR);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-    const ext = path.extname(file.originalname);
-    cb(null, `${uniqueSuffix}${ext}`);
-  },
-});
+// Common Storage Factory
+const getStorage = (dest) =>
+  multer.diskStorage({
+    destination: (req, file, cb) => cb(null, dest),
+    filename: (req, file, cb) => {
+      const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+      const ext = path.extname(file.originalname);
+      cb(null, `${uniqueSuffix}${ext}`);
+    },
+  });
 
-// File filter for images only
+// File filter for images
 const fileFilter = (req, file, cb) => {
   const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
   if (allowedTypes.includes(file.mimetype)) {
@@ -44,11 +55,18 @@ const fileFilter = (req, file, cb) => {
 
 // Max file size: 5MB per image
 const uploadProductImages = multer({
-  storage,
+  storage: getStorage(PRODUCT_IMAGES_DIR),
+  fileFilter,
+  limits: { fileSize: 5 * 1024 * 1024 },
+});
+
+const uploadCategoryImage = multer({
+  storage: getStorage(CATEGORY_IMAGES_DIR),
   fileFilter,
   limits: { fileSize: 5 * 1024 * 1024 },
 });
 
 module.exports = {
   uploadProductImages,
+  uploadCategoryImage,
 };
