@@ -1,5 +1,3 @@
-// backend/controllers/ticketController.js
-
 const Ticket = require("../models/Ticket");
 const { sendResponse } = require("../middleware/responseMiddleware");
 const {
@@ -30,24 +28,36 @@ exports.createTicket = async (req, res, next) => {
     }
 
     const attachments = [];
-    for (const file of req.files || []) {
-      const filePath = `/uploads/tickets/${file.filename}`;
-      const fileBuffer = await fs.readFile(
-        path.join(__dirname, "..", filePath)
-      );
-      const fileType = detectMagicType(fileBuffer);
 
-      if (!fileType) {
-        await fs.unlink(path.join(__dirname, "..", filePath)); // Cleanup invalid file
-        return next(
-          new BadRequestError(`Invalid file type: ${file.originalname}`)
-        );
+    if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+        if (!file.buffer) continue;
+
+        const fileBuffer = file.buffer;
+        const fileType = detectMagicType(fileBuffer);
+
+        if (!fileType) {
+          return next(
+            new BadRequestError(`Invalid file type: ${file.originalname}`)
+          );
+        }
+
+        const filename = `${Date.now()}-${file.originalname}`;
+        const localPath = path.join("uploads", "tickets", filename);
+        const absolutePath = path.join(__dirname, "..", localPath);
+
+        await fs.writeFile(absolutePath, fileBuffer);
+
+        const publicUrl = `${process.env.BACKEND_URL}/${localPath.replace(
+          /\\/g,
+          "/"
+        )}`;
+
+        attachments.push({
+          url: publicUrl,
+          type: fileType,
+        });
       }
-
-      attachments.push({
-        url: filePath,
-        type: fileType,
-      });
     }
 
     const ticket = await Ticket.create({
@@ -84,24 +94,36 @@ exports.replyToTicket = async (req, res, next) => {
     }
 
     const attachments = [];
-    for (const file of req.files || []) {
-      const filePath = `/uploads/tickets/${file.filename}`;
-      const fileBuffer = await fs.readFile(
-        path.join(__dirname, "..", filePath)
-      );
-      const fileType = detectMagicType(fileBuffer);
 
-      if (!fileType) {
-        await fs.unlink(path.join(__dirname, "..", filePath));
-        return next(
-          new BadRequestError(`Invalid file type: ${file.originalname}`)
-        );
+    if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+        if (!file.buffer) continue;
+
+        const fileBuffer = file.buffer;
+        const fileType = detectMagicType(fileBuffer);
+
+        if (!fileType) {
+          return next(
+            new BadRequestError(`Invalid file type: ${file.originalname}`)
+          );
+        }
+
+        const filename = `${Date.now()}-${file.originalname}`;
+        const localPath = path.join("uploads", "tickets", filename);
+        const absolutePath = path.join(__dirname, "..", localPath);
+
+        await fs.writeFile(absolutePath, fileBuffer);
+
+        const publicUrl = `${process.env.BACKEND_URL}/${localPath.replace(
+          /\\/g,
+          "/"
+        )}`;
+
+        attachments.push({
+          url: publicUrl,
+          type: fileType,
+        });
       }
-
-      attachments.push({
-        url: filePath,
-        type: fileType,
-      });
     }
 
     const isAdmin = req.user.role === "adm";

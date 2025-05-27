@@ -57,6 +57,8 @@ app.use(
           "data:",
           "http://localhost:8000",
           "http://localhost:3000",
+          "https://urban-ecommerce-frontend.vercel.app/",
+          "https://urban-demo.roi.qa",
         ],
       },
     },
@@ -90,7 +92,7 @@ app.use(cookieParser());
 app.use("/uploads", (req, res, next) => {
   res.setHeader(
     "Content-Security-Policy",
-    "default-src 'self'; img-src 'self' data: http://localhost:8000 http://localhost:3000; object-src 'none';"
+    "default-src 'self'; img-src 'self' data: http://localhost:8000 http://localhost:3000 https://urban-ecommerce-frontend.vercel.app https://urban-demo.roi.qa; object-src 'none';"
   );
   next();
 });
