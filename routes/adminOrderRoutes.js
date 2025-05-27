@@ -6,6 +6,9 @@ const router = express.Router();
 // Get all orders (admin view)
 router.get("/", adminOrderController.getAllOrders);
 
+// Get order summary (e.g., total sales, number of orders)
+router.get("/summary", adminOrderController.getOrderSummary);
+
 // Get a single order by ID
 router.get("/:id", adminOrderController.getOrderById);
 

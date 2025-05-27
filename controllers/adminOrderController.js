@@ -6,13 +6,80 @@ const { BadRequestError, NotFoundError } = require("../utils/errors");
 // @route GET /api/admin/orders
 exports.getAllOrders = async (req, res, next) => {
   try {
-    const orders = await Order.find()
-      .sort({ createdAt: -1 })
-      .populate("user", "name email")
-      .populate("items.product", "title images slug");
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
 
-    sendResponse(res, 200, "All orders fetched", orders);
+    const { status, isPaid, email } = req.query;
+
+    console.log("🔥 Filters Received:", { status, isPaid, email, page, limit });
+
+    const match = {};
+
+    if (status) {
+      match.status = status;
+      console.log("🔎 Filtering by status:", status);
+    }
+
+    if (isPaid !== undefined && isPaid !== "") {
+      match.isPaid = isPaid === "true";
+      console.log("🔎 Filtering by isPaid:", match.isPaid);
+    }
+
+    const pipeline = [
+      { $match: match },
+      {
+        $lookup: {
+          from: "users",
+          localField: "user",
+          foreignField: "_id",
+          as: "user",
+        },
+      },
+      { $unwind: { path: "$user", preserveNullAndEmptyArrays: true } },
+    ];
+
+    if (email) {
+      pipeline.push({
+        $match: {
+          "user.email": { $regex: email, $options: "i" },
+        },
+      });
+      console.log("🔎 Filtering by email:", email);
+    }
+
+    // Log the pipeline before aggregation
+    console.log("🛠️ Aggregation Pipeline:", JSON.stringify(pipeline, null, 2));
+
+    const totalOrdersAgg = await Order.aggregate([
+      ...pipeline,
+      { $count: "total" },
+    ]);
+    const totalOrders = totalOrdersAgg[0]?.total || 0;
+    console.log("📊 Total Orders Matching Filters:", totalOrders);
+
+    pipeline.push({ $sort: { createdAt: -1 } });
+    pipeline.push({ $skip: skip });
+    pipeline.push({ $limit: limit });
+
+    console.log(
+      "🚀 Final Pipeline with Pagination:",
+      JSON.stringify(pipeline, null, 2)
+    );
+
+    const orders = await Order.aggregate(pipeline);
+    console.log("✅ Orders Fetched:", orders.length);
+
+    sendResponse(res, 200, "Orders fetched", {
+      orders,
+      pagination: {
+        totalOrders,
+        totalPages: Math.ceil(totalOrders / limit),
+        currentPage: page,
+      },
+    });
   } catch (err) {
+    console.error("❌ Error in getAllOrders:", err);
     next(err);
   }
 };
@@ -111,6 +178,37 @@ exports.deleteOrder = async (req, res, next) => {
     if (!order) return next(new NotFoundError("Order not found"));
 
     sendResponse(res, 200, "Order deleted");
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getOrderSummary = async (req, res, next) => {
+  try {
+    const [totalOrders, pendingOrders, paidOrders, revenueTodayAgg] =
+      await Promise.all([
+        Order.countDocuments(),
+        Order.countDocuments({ status: "pending" }),
+        Order.countDocuments({ isPaid: true }),
+        Order.aggregate([
+          {
+            $match: {
+              isPaid: true,
+              paidAt: { $gte: new Date(new Date().setHours(0, 0, 0, 0)) },
+            },
+          },
+          { $group: { _id: null, total: { $sum: "$totalAmount" } } },
+        ]),
+      ]);
+
+    const revenueToday = revenueTodayAgg[0]?.total || 0;
+
+    sendResponse(res, 200, "Order summary fetched", {
+      totalOrders,
+      pendingOrders,
+      paidOrders,
+      revenueToday,
+    });
   } catch (err) {
     next(err);
   }
