@@ -1,5 +1,3 @@
-// backend/routes/adminOrderRoutes.js
-
 const express = require("express");
 const adminOrderController = require("../controllers/adminOrderController");
 

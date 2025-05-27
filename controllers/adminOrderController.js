@@ -1,5 +1,3 @@
-// backend/controllers/adminOrderController.js
-
 const Order = require("../models/Order");
 const { sendResponse } = require("../middleware/responseMiddleware");
 const { BadRequestError, NotFoundError } = require("../utils/errors");

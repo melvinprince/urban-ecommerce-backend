@@ -1,4 +1,3 @@
-// backend/models/Order.js
 const mongoose = require("mongoose");
 
 const orderSchema = new mongoose.Schema(
@@ -6,7 +5,7 @@ const orderSchema = new mongoose.Schema(
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: false, // optional for guest checkouts
+      required: false,
     },
     items: [
       {
