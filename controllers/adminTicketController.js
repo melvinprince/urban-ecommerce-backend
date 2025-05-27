@@ -5,6 +5,7 @@ const { sendResponse } = require("../middleware/responseMiddleware");
 const { NotFoundError, BadRequestError } = require("../utils/errors");
 const fs = require("fs/promises");
 const path = require("path");
+require("dotenv").config();
 
 // Helper: Delete file
 const deleteFile = async (filePath) => {
@@ -54,30 +55,39 @@ exports.getTicketById = async (req, res, next) => {
 exports.replyToTicket = async (req, res, next) => {
   try {
     const ticket = await Ticket.findById(req.params.id);
+    console.log("Ticket ID:", req.params.id);
+
     if (!ticket) return next(new NotFoundError("Ticket not found"));
 
     const { message } = req.body;
+    console.log("Message:", message);
+
     if (!message || !message.trim()) {
       return next(new BadRequestError("Message cannot be empty"));
     }
-
     const attachments = [];
     for (const file of req.files || []) {
-      const filePath = `/uploads/tickets/${file.filename}`;
-      const fileBuffer = await fs.readFile(
-        path.join(__dirname, "..", filePath)
-      );
+      console.log("Processing file:", file.originalname);
+
+      const localFilePath = path.join("uploads", "tickets", file.filename);
+      const absoluteFilePath = path.join(__dirname, "..", localFilePath);
+      const fileBuffer = await fs.readFile(absoluteFilePath);
       const fileType = detectMagicType(fileBuffer);
 
       if (!fileType) {
-        await fs.unlink(path.join(__dirname, "..", filePath));
+        await fs.unlink(absoluteFilePath);
         return next(
           new BadRequestError(`Invalid file type: ${file.originalname}`)
         );
       }
 
+      const fileUrl = `${process.env.BACKEND_URL}/${localFilePath.replace(
+        /\\/g,
+        "/"
+      )}`;
+
       attachments.push({
-        url: filePath,
+        url: fileUrl,
         type: fileType,
       });
     }
