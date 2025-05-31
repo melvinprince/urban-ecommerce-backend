@@ -3,18 +3,36 @@ const { BadRequestError, NotFoundError } = require("../utils/errors");
 const { sendResponse } = require("../middleware/responseMiddleware");
 const fs = require("fs/promises");
 const path = require("path");
+const { default: makeFullUrl } = require("../utils/makeFullUrl");
 
-// Helper: Delete image from disk
-const deleteImageFile = async (imgPath) => {
+/* ------------------------------------------------------------------ */
+/*  Config / helpers                                                   */
+/* ------------------------------------------------------------------ */
+
+const BASE_UPLOAD_DIR = "/uploads/category-images";
+
+/**
+ * deleteImageFile – Removes a file from disk.
+ * Accepts either a relative path (/uploads/…) or a full URL.
+ */
+const deleteImageFile = async (imgUrlOrPath) => {
+  if (!imgUrlOrPath) return;
+
   try {
-    const fullPath = path.join(__dirname, "..", imgPath);
+    // strip protocol & host if present
+    const relPath = imgUrlOrPath.replace(/^https?:\/\/[^/]+/, "");
+    const fullPath = path.join(__dirname, "..", relPath);
     await fs.unlink(fullPath);
   } catch (err) {
-    console.error("Failed to delete image:", imgPath, err.message);
+    console.error("Failed to delete image:", imgUrlOrPath, err.message);
   }
 };
 
-// @desc Create a new category
+/* ------------------------------------------------------------------ */
+/*  Controller actions                                                 */
+/* ------------------------------------------------------------------ */
+
+// @desc  Create a new category
 exports.createCategory = async (req, res, next) => {
   try {
     const { name, slug, parent, description, metaTitle, metaDescription } =
@@ -22,32 +40,37 @@ exports.createCategory = async (req, res, next) => {
 
     if (!name) {
       if (req.file)
-        await deleteImageFile(`/uploads/category-images/${req.file.filename}`);
+        await deleteImageFile(`${BASE_UPLOAD_DIR}/${req.file.filename}`);
       return next(new BadRequestError("Category name is required"));
     }
 
+    const relativeImagePath = req.file
+      ? `${BASE_UPLOAD_DIR}/${req.file.filename}`
+      : undefined;
+
     const category = await Category.create({
-      name,
-      slug: slug || name.toLowerCase().replace(/\s+/g, "-"),
+      name: name.trim(),
+      slug: slug || name.trim().toLowerCase().replace(/\s+/g, "-"),
       parent: parent || null,
       description,
       metaTitle,
       metaDescription,
-      image: req.file
-        ? `/uploads/category-images/${req.file.filename}`
-        : undefined,
+      image: relativeImagePath,
     });
 
-    sendResponse(res, 201, "Category created", category);
+    // send full URL to client
+    const data = category.toObject();
+    data.image = makeFullUrl(data.image);
+
+    sendResponse(res, 201, "Category created", data);
   } catch (err) {
     if (req.file)
-      await deleteImageFile(`/uploads/category-images/${req.file.filename}`);
+      await deleteImageFile(`${BASE_UPLOAD_DIR}/${req.file.filename}`);
     next(err);
   }
 };
 
-// @desc Get all categories
-// @desc Get all categories (with product count)
+// @desc  Get all categories (with product count)
 exports.getAllCategories = async (req, res, next) => {
   try {
     const categories = await Category.aggregate([
@@ -66,24 +89,30 @@ exports.getAllCategories = async (req, res, next) => {
       },
       {
         $project: {
-          products: 0, // Exclude the full product array
+          products: 0,
         },
       },
     ]);
 
     // Populate parent field (for tree view)
-    const categoriesWithParent = await Category.populate(categories, {
+    const populated = await Category.populate(categories, {
       path: "parent",
       select: "name",
     });
 
-    sendResponse(res, 200, "Categories fetched", categoriesWithParent);
+    // convert image paths to full URLs
+    const data = populated.map((c) => ({
+      ...c,
+      image: makeFullUrl(c.image),
+    }));
+
+    sendResponse(res, 200, "Categories fetched", data);
   } catch (err) {
     next(err);
   }
 };
 
-// @desc Get a single category by ID
+// @desc  Get a single category by ID
 exports.getCategoryById = async (req, res, next) => {
   try {
     const category = await Category.findById(req.params.id).populate(
@@ -91,26 +120,30 @@ exports.getCategoryById = async (req, res, next) => {
       "name"
     );
     if (!category) return next(new NotFoundError("Category not found"));
-    sendResponse(res, 200, "Category fetched", category);
+
+    const data = category.toObject();
+    data.image = makeFullUrl(data.image);
+
+    sendResponse(res, 200, "Category fetched", data);
   } catch (err) {
     next(err);
   }
 };
 
-// @desc Update a category
+// @desc  Update a category
 exports.updateCategory = async (req, res, next) => {
   try {
     const category = await Category.findById(req.params.id);
     if (!category) {
       if (req.file)
-        await deleteImageFile(`/uploads/category-images/${req.file.filename}`);
+        await deleteImageFile(`${BASE_UPLOAD_DIR}/${req.file.filename}`);
       return next(new NotFoundError("Category not found"));
     }
 
     const { name, slug, parent, description, metaTitle, metaDescription } =
       req.body;
 
-    if (name) category.name = name;
+    if (name) category.name = name.trim();
     if (slug) category.slug = slug;
     if (parent !== undefined) category.parent = parent || null;
     if (description !== undefined) category.description = description;
@@ -119,27 +152,32 @@ exports.updateCategory = async (req, res, next) => {
       category.metaDescription = metaDescription;
 
     if (req.file) {
+      // remove previous image if present
       if (category.image) await deleteImageFile(category.image);
-      category.image = `/uploads/category-images/${req.file.filename}`;
+      category.image = `${BASE_UPLOAD_DIR}/${req.file.filename}`;
     }
 
     await category.save();
-    sendResponse(res, 200, "Category updated", category);
+
+    const data = category.toObject();
+    data.image = makeFullUrl(data.image);
+
+    sendResponse(res, 200, "Category updated", data);
   } catch (err) {
     if (req.file)
-      await deleteImageFile(`/uploads/category-images/${req.file.filename}`);
+      await deleteImageFile(`${BASE_UPLOAD_DIR}/${req.file.filename}`);
     next(err);
   }
 };
 
-// @desc Delete a category
+// @desc  Delete a category
 exports.deleteCategory = async (req, res, next) => {
   try {
     const category = await Category.findById(req.params.id);
     if (!category) return next(new NotFoundError("Category not found"));
 
-    const hasChildren = await Category.exists({ parent: req.params.id });
-    if (hasChildren) {
+    const childExists = await Category.exists({ parent: req.params.id });
+    if (childExists) {
       return next(
         new BadRequestError(
           "Cannot delete this category because it has child categories. Please reassign or delete them first."
