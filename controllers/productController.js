@@ -250,9 +250,10 @@ exports.getProductsByIds = async (req, res, next) => {
       return next(new BadRequestError("Product IDs array is required"));
     }
 
-    const products = await Product.find({ _id: { $in: ids }, isActive: true })
-      .select("title slug price discountPrice images shortDescription")
-      .lean();
+    const products = await Product.find({
+      _id: { $in: ids },
+      isActive: true,
+    }).lean();
 
     sendResponse(res, 200, "Products fetched by IDs", products);
   } catch (error) {
