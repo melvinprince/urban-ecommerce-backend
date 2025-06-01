@@ -66,12 +66,29 @@ async function seedProducts() {
       "Gray",
     ];
 
-    // 4) For each category, generate 3 products
+    // Possible materials for clothing-based tags
+    const MATERIALS = ["cotton", "denim", "leather", "linen", "synthetic"];
+    const CLOTHING_NOUNS = [
+      "Shirt",
+      "Shirts",
+      "T-Shirt",
+      "Dress",
+      "Jeans",
+      "Jacket",
+      "Sweater",
+      "Hoodie",
+      "Pants",
+      "Skirt",
+      "Top",
+      "Blouse",
+    ];
+
+    // 4) For each category, generate 5 products
     for (const cat of allCategories) {
       const ancestorIds = await gatherAncestors(cat, allCategories);
       const categoryLineage = [cat._id, ...ancestorIds];
 
-      for (let i = 1; i <= 3; i++) {
+      for (let i = 1; i <= 5; i++) {
         // 4a) Build title & slug
         const descriptors = [
           "Classic",
@@ -90,13 +107,13 @@ async function seedProducts() {
         const title = `${descriptor} ${noun} ${i}`;
         const slug = `${cat.slug}-product-${i}`;
 
-        // 4b) Price & optional discount
-        const price = Number((randInt(20, 200) + Math.random()).toFixed(2));
+        // 4b) Price & optional discount (integers only)
+        const price = randInt(20, 200);
         let discountPrice = null;
         const applyDiscount = Math.random() < 0.4;
         if (applyDiscount) {
           const discountPct = randInt(10, 30);
-          discountPrice = Number((price * (1 - discountPct / 100)).toFixed(2));
+          discountPrice = Math.round(price * (1 - discountPct / 100));
         }
 
         // 4c) Sizes & colors
@@ -127,11 +144,41 @@ async function seedProducts() {
         // 4g) Always active
         const isActive = true;
 
-        // 4h) Tags
-        const tags = [cat.slug];
-        if (isFeatured) tags.push("featured");
-        if (applyDiscount) tags.push("sale");
-        tags.push("new-arrival", "bestseller");
+        // 4h) Build realistic tags
+        const rawTags = new Set();
+        rawTags.add(cat.slug.toLowerCase()); // category slug
+        rawTags.add(noun.toLowerCase()); // noun itself
+        rawTags.add(`${descriptor.toLowerCase()} ${noun.toLowerCase()}`); // descriptor + noun
+
+        // If category name mentions "Men" or "Women", add those variants
+        const lowerCatName = cat.name.toLowerCase();
+        if (lowerCatName.includes("men")) {
+          rawTags.add(`mens ${noun.toLowerCase()}`);
+        }
+        if (lowerCatName.includes("women")) {
+          rawTags.add(`womens ${noun.toLowerCase()}`);
+        }
+
+        // Add a color-based tag, e.g., "red shirt"
+        const colorTag = `${colors[0].toLowerCase()} ${noun.toLowerCase()}`;
+        rawTags.add(colorTag);
+
+        // If noun is a common clothing term, add a material-based tag
+        if (
+          CLOTHING_NOUNS.some((cn) => cn.toLowerCase() === noun.toLowerCase())
+        ) {
+          const material = MATERIALS[randInt(0, MATERIALS.length - 1)];
+          rawTags.add(`${noun.toLowerCase()} ${material}`);
+        }
+
+        // Sale / featured / generic tags
+        if (isFeatured) rawTags.add("featured");
+        if (applyDiscount) rawTags.add("sale");
+        rawTags.add("new-arrival");
+        rawTags.add("bestseller");
+
+        // Finally, convert to array
+        const tags = Array.from(rawTags);
 
         // 4i) Descriptions
         const shortDescription = `${descriptor} ${noun} crafted for style and comfort. Perfect for everyday wear.`;
@@ -146,10 +193,10 @@ async function seedProducts() {
         const seoDescription = shortDescription;
         const seoKeywords = [
           ...title.toLowerCase().split(" ").filter(Boolean),
-          cat.slug,
+          cat.slug.toLowerCase(),
         ];
 
-        // 4k) Generate a unique SKU (using a short random hex snippet)
+        // 4k) Generate a unique SKU (6-digit random hex snippet ensures no duplicates)
         const randomHex = Math.random().toString(16).slice(-6).toUpperCase();
         const sku = `${cat.slug.toUpperCase().slice(0, 3)}-${i}-${randomHex}`;
 
@@ -183,7 +230,7 @@ async function seedProducts() {
     // 5) Bulk insert
     await Product.insertMany(productsToInsert);
     console.log(
-      `✅ Seeded ${productsToInsert.length} products across ${allCategories.length} categories.`
+      `✅ Seeded ${productsToInsert.length} products across ${allCategories.length} categories (5 each).`
     );
 
     await mongoose.connection.close();
