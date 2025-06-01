@@ -1,9 +1,11 @@
-// seeds/seedProducts.js
 require("dotenv").config();
 const mongoose = require("mongoose");
 const Product = require("../models/Product");
 const Category = require("../models/Category");
 
+/**
+ * Recursively gathers ancestor IDs for a given category.
+ */
 async function gatherAncestors(cat, allCats) {
   const ancestors = [];
   let current = cat;
@@ -18,66 +20,178 @@ async function gatherAncestors(cat, allCats) {
   return ancestors;
 }
 
+/** Utility: random integer between min and max (inclusive) */
+function randInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+/** Utility: pick N random elements from array */
+function pickRandomSubset(arr, count) {
+  const shuffled = arr.slice().sort(() => 0.5 - Math.random());
+  return shuffled.slice(0, count);
+}
+
+/**
+ * Main seeding function.
+ */
 async function seedProducts() {
   try {
+    // 1) Connect to MongoDB
     await mongoose.connect(process.env.MONGO_URI);
     console.log("🔗 Connected to MongoDB");
 
-    // 1) Clear existing products
+    // 2) Clear existing products
     await Product.deleteMany();
     console.log("🗑️  Cleared existing products");
 
-    // 2) Load all categories, optionally skip one
+    // 3) Load all categories
     const allCategories = await Category.find();
-    // e.g. skip kids-apparel if you like:
-    const categories = allCategories.filter(
-      (cat) => cat.slug !== "kids-apparel"
-    );
-    console.log(`📂 Seeding products for ${categories.length} categories`);
+    if (!allCategories.length) {
+      console.error("⚠️  No categories found—seed categories first.");
+      process.exit(1);
+    }
+    console.log(`📂 Found ${allCategories.length} categories.`);
 
-    const productsToCreate = [];
+    const productsToInsert = [];
 
-    for (const cat of categories) {
-      // find all ancestor IDs (parent, grandparent, …)
-      const ancestors = await gatherAncestors(cat, allCategories);
-      // our categories array:
-      const catIds = [cat._id, ...ancestors];
+    // Predefined size/color options
+    const SIZE_OPTIONS = ["XS", "S", "M", "L", "XL"];
+    const COLOR_OPTIONS = [
+      "Black",
+      "White",
+      "Red",
+      "Blue",
+      "Green",
+      "Yellow",
+      "Gray",
+    ];
+
+    // 4) For each category, generate 3 products
+    for (const cat of allCategories) {
+      const ancestorIds = await gatherAncestors(cat, allCategories);
+      const categoryLineage = [cat._id, ...ancestorIds];
 
       for (let i = 1; i <= 3; i++) {
-        productsToCreate.push({
-          title: `${cat.name} Item ${i}`,
-          slug: `${cat.slug}-item-${i}`,
-          description: `This is a detailed description for ${cat.name} Item ${i}. Premium quality.`,
-          shortDescription: `High-quality ${cat.name.toLowerCase()} item ${i}.`,
-          price: Math.floor(Math.random() * 80) + 20,
-          discountPrice: null,
-          sku: `SKU-${cat.slug.toUpperCase()}-${i}`,
-          categories: catIds,
-          sizes: ["S", "M", "L"],
-          colors: ["Black", "Olive Green", "White"],
-          images: [
-            `https://picsum.photos/seed/${cat.slug}-${i}/200/300`,
-            `https://picsum.photos/seed/${cat.slug}-${i}-2/200/300`,
-          ],
-          stock: Math.floor(Math.random() * 90) + 10,
-          isFeatured: false,
-          isActive: true,
-          tags: [],
+        // 4a) Build title & slug
+        const descriptors = [
+          "Classic",
+          "Premium",
+          "Sporty",
+          "Elegant",
+          "Modern",
+          "Urban",
+          "Vintage",
+          "Comfort",
+          "Stylish",
+          "Trendy",
+        ];
+        const noun = cat.name.split(" ").slice(-1)[0];
+        const descriptor = descriptors[randInt(0, descriptors.length - 1)];
+        const title = `${descriptor} ${noun} ${i}`;
+        const slug = `${cat.slug}-product-${i}`;
+
+        // 4b) Price & optional discount
+        const price = Number((randInt(20, 200) + Math.random()).toFixed(2));
+        let discountPrice = null;
+        const applyDiscount = Math.random() < 0.4;
+        if (applyDiscount) {
+          const discountPct = randInt(10, 30);
+          discountPrice = Number((price * (1 - discountPct / 100)).toFixed(2));
+        }
+
+        // 4c) Sizes & colors
+        const sizes = pickRandomSubset(
+          SIZE_OPTIONS,
+          randInt(2, Math.min(4, SIZE_OPTIONS.length))
+        );
+        const colors = pickRandomSubset(
+          COLOR_OPTIONS,
+          randInt(2, Math.min(4, COLOR_OPTIONS.length))
+        );
+
+        // 4d) Generate 2–5 image URLs via Picsum
+        const imgCount = randInt(2, 5);
+        const images = [];
+        for (let j = 1; j <= imgCount; j++) {
+          images.push(
+            `https://picsum.photos/seed/${cat.slug}-${i}-${j}/200/300`
+          );
+        }
+
+        // 4e) Stock level
+        const stock = randInt(0, 100);
+
+        // 4f) Featured flag
+        const isFeatured = i === 1;
+
+        // 4g) Always active
+        const isActive = true;
+
+        // 4h) Tags
+        const tags = [cat.slug];
+        if (isFeatured) tags.push("featured");
+        if (applyDiscount) tags.push("sale");
+        tags.push("new-arrival", "bestseller");
+
+        // 4i) Descriptions
+        const shortDescription = `${descriptor} ${noun} crafted for style and comfort. Perfect for everyday wear.`;
+        const description = `${shortDescription} This ${noun.toLowerCase()} from our ${
+          cat.name
+        } collection features premium materials, exceptional durability, and a modern design that suits any occasion. Available in multiple sizes and colors.${
+          applyDiscount ? " Currently on sale at a special discount!" : ""
+        }`;
+
+        // 4j) SEO metadata
+        const seoTitle = title;
+        const seoDescription = shortDescription;
+        const seoKeywords = [
+          ...title.toLowerCase().split(" ").filter(Boolean),
+          cat.slug,
+        ];
+
+        // 4k) Generate a unique SKU (using a short random hex snippet)
+        const randomHex = Math.random().toString(16).slice(-6).toUpperCase();
+        const sku = `${cat.slug.toUpperCase().slice(0, 3)}-${i}-${randomHex}`;
+
+        // 4l) Assemble final product object
+        const productObj = {
+          title,
+          slug,
+          description,
+          shortDescription,
+          price,
+          discountPrice,
+          sku,
+          categories: categoryLineage,
+          sizes,
+          colors,
+          images,
+          stock,
+          isFeatured,
+          isActive,
+          tags,
           rating: { average: 0, count: 0 },
-        });
+          seoTitle,
+          seoDescription,
+          seoKeywords,
+        };
+
+        productsToInsert.push(productObj);
       }
     }
 
-    // 4) Insert into DB
-    await Product.create(productsToCreate);
+    // 5) Bulk insert
+    await Product.insertMany(productsToInsert);
     console.log(
-      `✅ Created ${productsToCreate.length} products across ${categories.length} categories`
+      `✅ Seeded ${productsToInsert.length} products across ${allCategories.length} categories.`
     );
 
-    console.log("🎉 Product seeding complete!");
-    process.exit();
+    await mongoose.connection.close();
+    console.log("🔌 Connection closed—seeding complete.");
+    process.exit(0);
   } catch (err) {
-    console.error("❌ Seeding error:", err);
+    console.error("❌ Error during product seeding:", err);
+    await mongoose.connection.close();
     process.exit(1);
   }
 }

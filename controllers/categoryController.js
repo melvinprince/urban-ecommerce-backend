@@ -22,6 +22,8 @@ exports.getAllCategories = async (req, res, next) => {
       image: makeFullUrl(c.image),
     }));
 
+    console.log("categeroies controller", data);
+
     sendResponse(res, 200, "Categories fetched successfully", data);
   } catch (err) {
     next(new InternalServerError("Failed to fetch categories", err));
