@@ -7,7 +7,7 @@ const cookieParser = require("cookie-parser");
 const path = require("path");
 require("express-async-errors");
 
-// Middleware
+// Middleware & Utilities
 const auth = require("./middleware/auth");
 const isAdmin = require("./middleware/role");
 const { errorHandler } = require("./middleware/errorMiddleware");
@@ -32,6 +32,9 @@ const ticketRoutes = require("./routes/ticketRoutes");
 const reviewRoutes = require("./routes/reviewRoutes");
 const couponRoutes = require("./routes/couponRoutes");
 
+// --- New Newsletter Route Import ---
+const newsletterRoutes = require("./routes/newsletterRoutes");
+
 // Admin routes
 const adminProductRoutes = require("./routes/adminProductRoutes");
 const adminCategoryRoutes = require("./routes/adminCategoryRoutes");
@@ -47,7 +50,7 @@ app.use(
   helmet({
     crossOriginOpenerPolicy: false,
     crossOriginResourcePolicy: {
-      policy: "cross-origin", // allow access from different origins
+      policy: "cross-origin",
     },
     contentSecurityPolicy: {
       useDefaults: true,
@@ -115,6 +118,9 @@ app.use("/api/paypal", paymentLimiter, paypalRoutes);
 app.use("/api/tickets", ticketLimiter, ticketRoutes);
 app.use("/api/reviews", reviewLimiter, reviewRoutes);
 app.use("/api/coupons", couponRoutes);
+
+// --- New Public Route: Newsletter Subscription ---
+app.use("/api/newsletter", newsletterRoutes);
 
 // Protected Routes (auth required)
 app.use("/api/cart", auth, cartRoutes);

@@ -10,8 +10,6 @@ const Product = require("../models/Product"); // ← we need this to verify prod
 // GET /api/cart
 exports.getCart = async (req, res, next) => {
   try {
-    console.log("🔍 [getCart] req.user:", req.user);
-
     if (!req.user) {
       // No user means authentication middleware was never applied
       return next(
@@ -20,7 +18,6 @@ exports.getCart = async (req, res, next) => {
     }
 
     const userId = req.user._id;
-    console.log("🔍 [getCart] userId:", userId);
 
     let cart = await Cart.findOne({ user: userId }).populate({
       path: "items.product",
@@ -28,19 +25,12 @@ exports.getCart = async (req, res, next) => {
     });
 
     if (!cart) {
-      console.log("ℹ️ [getCart] No cart found—creating a new one");
       cart = await Cart.create({ user: userId, items: [] });
       await cart.populate({
         path: "items.product",
         select: "title slug images price discountPrice sizes colors stock",
       });
     }
-
-    console.log("✅ [getCart] Found/created cart:", {
-      items: cart.items,
-      totalItems: cart.totalItems,
-      subtotal: cart.subtotal,
-    });
 
     sendResponse(res, 200, "Cart fetched successfully", {
       items: cart.items,
@@ -56,9 +46,6 @@ exports.getCart = async (req, res, next) => {
 // POST /api/cart
 exports.addOrUpdateCart = async (req, res, next) => {
   try {
-    console.log("🔍 [addOrUpdateCart] req.user:", req.user);
-    console.log("🔍 [addOrUpdateCart] req.body:", req.body);
-
     if (!req.user) {
       return next(
         new UnauthorizedError("You must be logged in to modify the cart")
@@ -74,7 +61,6 @@ exports.addOrUpdateCart = async (req, res, next) => {
 
     // 1) Verify that the product actually exists
     const product = await Product.findById(productId);
-    console.log("🔍 [addOrUpdateCart] Found product:", product);
 
     if (!product) {
       return next(new NotFoundError("Product not found"));
@@ -83,7 +69,6 @@ exports.addOrUpdateCart = async (req, res, next) => {
     // 2) Find or create the cart for this user
     let cart = await Cart.findOne({ user: userId });
     if (!cart) {
-      console.log("ℹ️ [addOrUpdateCart] No cart for user—creating new");
       cart = new Cart({ user: userId, items: [] });
     }
 
@@ -94,15 +79,11 @@ exports.addOrUpdateCart = async (req, res, next) => {
         (size ? item.size === size : true) &&
         (color ? item.color === color : true)
     );
-    console.log("ℹ️ [addOrUpdateCart] existing item index:", idx);
 
     if (idx > -1) {
       // Update quantity
       cart.items[idx].quantity += quantity;
-      console.log(
-        `✏️ [addOrUpdateCart] Incremented quantity of cart item idx ${idx} → new qty:`,
-        cart.items[idx].quantity
-      );
+
       if (cart.items[idx].quantity < 1) {
         cart.items.splice(idx, 1);
         console.log(
@@ -111,12 +92,7 @@ exports.addOrUpdateCart = async (req, res, next) => {
       }
     } else {
       // Push new line item (and also store price snapshot if needed)
-      console.log("➕ [addOrUpdateCart] Pushing new cart item:", {
-        product: productId,
-        quantity,
-        size,
-        color,
-      });
+
       cart.items.push({
         product: productId,
         quantity,
@@ -127,15 +103,12 @@ exports.addOrUpdateCart = async (req, res, next) => {
 
     // 4) Save the cart
     await cart.save();
-    console.log("✅ [addOrUpdateCart] Cart saved:", cart);
 
     // 5) Re‐populate so we get full product details
     await cart.populate({
       path: "items.product",
       select: "title slug images price discountPrice sizes colors stock",
     });
-
-    console.log("🧮 [addOrUpdateCart] After populate, items:", cart.items);
 
     // 6) Send response
     sendResponse(res, 200, "Cart updated successfully", {
@@ -152,9 +125,6 @@ exports.addOrUpdateCart = async (req, res, next) => {
 // DELETE /api/cart/:itemId
 exports.removeCartItem = async (req, res, next) => {
   try {
-    console.log("🔍 [removeCartItem] req.user:", req.user);
-    console.log("🔍 [removeCartItem] req.params.itemId:", req.params.itemId);
-
     if (!req.user) {
       return next(
         new UnauthorizedError("You must be logged in to modify the cart")
@@ -196,10 +166,6 @@ exports.removeCartItem = async (req, res, next) => {
 // PUT /api/cart/:itemId
 exports.updateCartItem = async (req, res, next) => {
   try {
-    console.log("🔍 [updateCartItem] req.user:", req.user);
-    console.log("🔍 [updateCartItem] req.params.itemId:", req.params.itemId);
-    console.log("🔍 [updateCartItem] req.body:", req.body);
-
     if (!req.user) {
       return next(
         new UnauthorizedError("You must be logged in to modify the cart")
@@ -222,24 +188,16 @@ exports.updateCartItem = async (req, res, next) => {
 
     if (quantity != null) {
       item.quantity = quantity;
-      console.log(
-        `✏️ [updateCartItem] Set quantity to ${quantity} for item ${itemId}`
-      );
     }
     if (size != null) {
       item.size = size;
-      console.log(`✏️ [updateCartItem] Set size to ${size} for item ${itemId}`);
     }
     if (color != null) {
       item.color = color;
-      console.log(
-        `✏️ [updateCartItem] Set color to ${color} for item ${itemId}`
-      );
     }
 
     if (item.quantity < 1) {
       cart.items.id(itemId).remove();
-      console.log(`🗑️ [updateCartItem] Quantity < 1 → removed item ${itemId}`);
     }
 
     await cart.save();
@@ -262,8 +220,6 @@ exports.updateCartItem = async (req, res, next) => {
 // DELETE /api/cart/clear
 exports.clearCart = async (req, res, next) => {
   try {
-    console.log("🔍 [clearCart] req.user:", req.user);
-
     if (!req.user) {
       return next(
         new UnauthorizedError("You must be logged in to clear the cart")
