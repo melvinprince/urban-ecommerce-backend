@@ -3,7 +3,7 @@ const { BadRequestError, NotFoundError } = require("../utils/errors");
 const { sendResponse } = require("../middleware/responseMiddleware");
 const fs = require("fs/promises");
 const path = require("path");
-const { default: makeFullUrl } = require("../utils/makeFullUrl");
+const makeFullUrl = require("../utils/makeFullUrl");
 
 /* ------------------------------------------------------------------ */
 /*  Config / helpers                                                   */

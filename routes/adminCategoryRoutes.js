@@ -1,5 +1,3 @@
-// backend/routes/adminCategoryRoutes.js
-
 const express = require("express");
 const { uploadCategoryImage } = require("../middleware/uploadMiddleware");
 const adminCategoryController = require("../controllers/adminCategoryController");
