@@ -70,14 +70,17 @@ app.use(
 
 // CORS Setup
 const allowedOrigins = process.env.FRONT_END_URL
-  ? process.env.FRONT_END_URL.split(",").map((url) => url.trim())
+  ? process.env.FRONT_END_URL.split(",").map((url) =>
+      url.replace(/\/+$/, "").trim()
+    )
   : [];
 
 app.use(
   cors({
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) {
+      const normalizedOrigin = origin.replace(/\/+$/, "");
+      if (allowedOrigins.includes(normalizedOrigin)) {
         callback(null, true);
       } else {
         callback(new Error("Not allowed by CORS"));
